@@ -29,9 +29,9 @@
     </organization>
 
     <scm>
-        <connection>scm:git:git://github.com/greese/dasein-cloud-azure.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/greese/dasein-cloud-azure.git</developerConnection>
-        <url>http://github.com/greese/dasein-cloud-azure</url>
+        <connection>scm:git:git://github.com/dasein-cloud/dasein-cloud-azure.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/dasein-cloud/dasein-cloud-azure.git</developerConnection>
+        <url>http://github.com/dasein-cloud/dasein-cloud-azure</url>
     </scm>
 
     <parent>
@@ -324,39 +324,15 @@
 
     <developers>
         <developer>
-            <name>George Reese</name>
-            <id>georgereese</id>
-            <email>george.reese -at- enstratus -dot- com</email>
-            <organization>enStratus</organization>
-            <roles>
-                <role>Java Developer</role>
-                <role>PMC</role>
-            </roles>
-            <url>http://www.enstratus.com</url>
-            <timezone>-6</timezone>
-        </developer>
-        <developer>
-            <name>Morgan Catlin</name>
-            <id>sylistron</id>
-            <email>morgan.catlin -at- valtira -dot- com</email>
-            <organization>enStratus</organization>
+            <name>Vlad Munthiu</name>
+            <id>vladmunthiu</id>
+            <email>vlad.munthiu -at- enstratius -dot- com</email>
+            <organization>Dell</organization>
             <roles>
                 <role>Java Developer</role>
             </roles>
-            <url>http://www.valtira.com</url>
-            <timezone>-6</timezone>
-        </developer>
-        <developer>
-            <name>Adrian Cole</name>
-            <id>ferncam1</id>
-            <email>adrian -at- jclouds -dot- org</email>
-            <organization>jclouds</organization>
-            <roles>
-                <role>Java Developer</role>
-                <role>PMC</role>
-            </roles>
-            <url>http://www.jclouds.org</url>
-            <timezone>-8</timezone>
+            <url>http://www.enstratius.com</url>
+            <timezone>0</timezone>
         </developer>
     </developers>
 </project>
