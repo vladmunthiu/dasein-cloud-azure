@@ -204,7 +204,7 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
     public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException
     {
         if(loadBalancerId == null || loadBalancerId.isEmpty())
-        throw new InternalException("Cannot remove load balancer. Please specify the id for load balancer to remove");
+            throw new InternalException("Cannot remove load balancer. Please specify the id for load balancer to remove");
 
         AzureMethod method = new AzureMethod(this.getProvider());
         method.invoke("DELETE", this.getContext().getAccountNumber(), String.format(RESOURCE_PROFILE, loadBalancerId), null);
@@ -442,9 +442,18 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
         if(providerLBHealthCheckId == null)
             throw new InternalException("Cannot retrieve Load Balancer Health Check when providerLBHealthCheckId is not provided");
 
-        String profileId = providerLoadBalancerId != null ? providerLoadBalancerId : providerLBHealthCheckId;
+        DefinitionModel definitionModel;
+        if(providerLoadBalancerId != null) {
+            definitionModel = getDefinition(providerLoadBalancerId);
+            if(!hasMonitor(definitionModel))
+                return null;
+        } else {
+            definitionModel = getDefinition(providerLBHealthCheckId);
+            if(!hasMonitor(definitionModel))
+                throw new InternalException("The health check with the specified providerLBHealthCheckId does not exists.");
+        }
 
-        DefinitionModel definitionModel = getDefinition(profileId);
+        String profileId = providerLoadBalancerId != null ? providerLoadBalancerId : providerLBHealthCheckId;
 
         DefinitionModel.MonitorModel currentMonitor = definitionModel.getMonitors().get(0);
         LoadBalancerHealthCheck.HCProtocol protocol =
@@ -461,6 +470,13 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
         loadBalancerHealthCheck.addProviderLoadBalancerId(profileId);
 
         return loadBalancerHealthCheck;
+    }
+
+    private boolean hasMonitor(DefinitionModel definitionModel) {
+        if(definitionModel == null || definitionModel.getMonitors() == null || definitionModel.getMonitors().get(0) == null)
+            return false;
+
+        return true;
     }
 
     @Override
