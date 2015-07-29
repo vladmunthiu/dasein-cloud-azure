@@ -126,7 +126,7 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
 
         updateVMRole(onServerId, persistentVMRoleModel);
 
-        return inputEndpoint.getName();
+        return new AzureRuleIdParts(onServerId, inputEndpoint.getProtocol(), inputEndpoint.getLocalPort()).toProviderId();
     }
 
     /**
@@ -405,10 +405,11 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
             for (PersistentVMRoleModel.InputEndpoint endpoint : persistentVMRoleModel.getConfigurationSets().get(0).getInputEndpoints())
             {
                 IpForwardingRule rule = new IpForwardingRule();
-                rule.setProviderRuleId(endpoint.getName());
+                rule.setProviderRuleId(new AzureRuleIdParts(serverId, endpoint.getProtocol(), endpoint.getLocalPort()).toProviderId());
                 rule.setPublicPort(Integer.parseInt(endpoint.getPort()));
                 rule.setPrivatePort(Integer.parseInt(endpoint.getLocalPort()));
                 rule.setServerId(serverId);
+                rule.setProtocol(Protocol.valueOf(endpoint.getProtocol().toUpperCase()));
                 rules.add(rule);
             }
         }
@@ -534,7 +535,9 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
      * @throws org.dasein.cloud.OperationNotSupportedException this cloud provider does not support address forwarding
      */
     @Override
-    public void stopForwardToServer(@Nonnull final String ruleId, @Nonnull String serverId) throws InternalException, CloudException {
+    public void stopForwardToServer(@Nonnull final String ruleId, @Nonnull final String serverId) throws InternalException, CloudException {
+        final AzureRuleIdParts azureRuleIdParts = AzureRuleIdParts.fromString(ruleId);
+
         PersistentVMRoleModel persistentVMRoleModel = getVMRole(serverId);
         if(persistentVMRoleModel == null)
             throw new InternalException("Cannot find Azure virtual machine with id: " + serverId);
@@ -542,7 +545,8 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
         CollectionUtils.filter(persistentVMRoleModel.getConfigurationSets().get(0).getInputEndpoints(), new Predicate() {
             @Override
             public boolean evaluate(Object object) {
-                return ((PersistentVMRoleModel.InputEndpoint) object).getName().equalsIgnoreCase(ruleId) == false;
+                PersistentVMRoleModel.InputEndpoint inputEndpoint = (PersistentVMRoleModel.InputEndpoint) object;
+                return !azureRuleIdParts.equals(new AzureRuleIdParts(serverId, inputEndpoint.getProtocol(), inputEndpoint.getLocalPort()));
             }
         });
 
