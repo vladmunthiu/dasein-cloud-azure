@@ -26,7 +26,7 @@ public class AzureRuleIdParts {
 
     public AzureRuleIdParts(String serverId, String protocol, String localPort) {
         this.serverId = serverId;
-        this.protocol = protocol;
+        this.protocol = protocol.toLowerCase();
         this.localPort = localPort;
     }
 
