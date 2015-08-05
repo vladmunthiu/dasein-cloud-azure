@@ -113,34 +113,14 @@ public class AzureOSImage extends AbstractImageSupport<Azure> {
             String vmid = options.getVirtualMachineId();
             String name = options.getName();
 
-            VirtualMachine vm;
-
-            vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
+            VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
             if (vm == null) {
                 throw new CloudException("Virtual machine not found: " + options.getVirtualMachineId());
             }
-            if (!vm.getCurrentState().equals(VmState.STOPPED)) {
-                logger.debug("Stopping server");
-                provider.getComputeServices().getVirtualMachineSupport().stop(vmid, false);
-                try {
-                    long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 10L);
-                    vm = null;
-                    while (timeout > System.currentTimeMillis()) {
-                        vm =  provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(options.getVirtualMachineId());
-                        if (vm.getCurrentState().equals(VmState.STOPPED)) {
-                            logger.debug("Server stopped");
-                            break;
-                        }
-                        try { Thread.sleep(15000L); }
-                        catch( InterruptedException ignore ) { }
-                    }
-                }
-                catch (Throwable ignore) {
-                }
-                if (!vm.getCurrentState().equals(VmState.STOPPED)) {
-                    throw new CloudException("Server still not stopped after 10 minutes.  Please try again later");
-                }
-            }
+
+            if( !provider.getComputeServices().getImageSupport().getCapabilities().canImage(vm.getCurrentState()))
+                throw new InternalException("Virtual machine must be shut down before capture an image from it.");
+
             try {
                 ProviderContext ctx = provider.getContext();
 
