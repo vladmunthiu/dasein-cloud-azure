@@ -109,6 +109,9 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
     @Nonnull
     @Override
     public String forward(@Nonnull String addressId, int publicPort, @Nonnull Protocol protocol, int privatePort, @Nonnull String onServerId) throws InternalException, CloudException {
+        if(onServerId == null)
+            throw new InternalException("Parameter onServerId cannot be null");
+
         PersistentVMRoleModel persistentVMRoleModel = getVMRole(onServerId);
         if(persistentVMRoleModel == null)
             throw new InternalException("Cannot find Azure virtual machine with id: " + onServerId);
@@ -394,6 +397,9 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
      */
     @Override
     public @Nonnull Iterable<IpForwardingRule> listRulesForServer(@Nonnull String serverId) throws InternalException, CloudException {
+        if(serverId == null)
+            throw new InternalException("Parameter serverId cannot be null");
+
         PersistentVMRoleModel persistentVMRoleModel = getVMRole(serverId);
         if(persistentVMRoleModel == null)
             throw new InternalException("Cannot find Azure virtual machine with id: " + serverId);
@@ -536,6 +542,9 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
      */
     @Override
     public void stopForwardToServer(@Nonnull final String ruleId, @Nonnull final String serverId) throws InternalException, CloudException {
+        if(serverId == null)
+            throw new InternalException("Parameter serverId cannot be null");
+
         final AzureRuleIdParts azureRuleIdParts = AzureRuleIdParts.fromString(ruleId);
 
         PersistentVMRoleModel persistentVMRoleModel = getVMRole(serverId);
@@ -592,8 +601,7 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
         }
     }
 
-    private PersistentVMRoleModel getVMRole(String vmId)
-    {
+    private PersistentVMRoleModel getVMRole(String vmId) throws InternalException {
         AzureRoleDetails roleDetails = AzureRoleDetails.fromString(vmId);
 
         try {
