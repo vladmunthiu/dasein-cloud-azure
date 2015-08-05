@@ -1,5 +1,7 @@
 package org.dasein.cloud.azure.compute.vm;
 
+import org.dasein.cloud.InternalException;
+
 /**
  * Created by vmunthiu on 12/11/2014.
  */
@@ -14,7 +16,10 @@ public class AzureRoleDetails{
         this.roleName = roleName;
     }
 
-    public static AzureRoleDetails fromString(String id){
+    public static AzureRoleDetails fromString(String id) throws InternalException {
+        if(id == null)
+            throw new InternalException("Parameter id cannot be null");
+
         String[] parts = id.split(":");
         String serviceName, deploymentName, roleName;
 
