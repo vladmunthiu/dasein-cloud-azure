@@ -876,6 +876,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+        getProvider().getComputeServices().getImageSupport().listMachineImages();
         ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
@@ -918,6 +919,8 @@ public class AzureVM extends AbstractVMSupport<Azure> {
         String dnsName = null;
         String vmRoleName = null;
         String imageId = null;
+        String vmImageId = null;
+        String diskOS = null;
         String mediaLink = null;
         String vlan = null;
         String subnetName = null;
@@ -985,10 +988,10 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                                 role.setProviderVirtualMachineId(serviceName + ":" + vmId);
                                 role.setName(vmId);
                             }
-                            else if( roleAttribute.getNodeName().equalsIgnoreCase("instancesize") && roleAttribute.hasChildNodes() ) {
+                            else if( roleAttribute.getNodeName().equalsIgnoreCase("instancesize") && roleAttribute.hasChildNodes()) {
                                 role.setProductId(roleAttribute.getFirstChild().getNodeValue().trim());
                             }
-                            else if( roleAttribute.getNodeName().equalsIgnoreCase("instanceupgradedomain") && roleAttribute.hasChildNodes() ) {
+                            else if( roleAttribute.getNodeName().equalsIgnoreCase("instanceupgradedomain") && roleAttribute.hasChildNodes()) {
                                 role.setTag("UpgradeDomain", roleAttribute.getFirstChild().getNodeValue().trim());
                             }
                             else if( roleAttribute.getNodeName().equalsIgnoreCase("instanceerrorcode") && roleAttribute.hasChildNodes() ) {
@@ -997,10 +1000,10 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                             else if( roleAttribute.getNodeName().equalsIgnoreCase("instancefaultdomain") && roleAttribute.hasChildNodes() ) {
                                 role.setTag("FaultDomain", roleAttribute.getFirstChild().getNodeValue().trim());
                             }
-                            else if( roleAttribute.getNodeName().equalsIgnoreCase("fqdn") && roleAttribute.hasChildNodes() ) {
+                            else if( roleAttribute.getNodeName().equalsIgnoreCase("fqdn") && roleAttribute.hasChildNodes()) {
                                 role.setPrivateDnsAddress(roleAttribute.getFirstChild().getNodeValue().trim());
                             }
-                            else if( roleAttribute.getNodeName().equalsIgnoreCase("ipaddress") && roleAttribute.hasChildNodes() ) {
+                            else if( roleAttribute.getNodeName().equalsIgnoreCase("ipaddress") && roleAttribute.hasChildNodes()) {
                                 role.setPrivateAddresses(new RawAddress[]{new RawAddress(roleAttribute.getFirstChild().getNodeValue().trim())});
                             }
                             else if( roleAttribute.getNodeName().equalsIgnoreCase("instanceendpoints") && roleAttribute.hasChildNodes() ) {
@@ -1130,10 +1133,16 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                                     else if( diskAttribute.getNodeName().equalsIgnoreCase("medialink") && diskAttribute.hasChildNodes() ) {
                                         mediaLink = diskAttribute.getFirstChild().getNodeValue().trim();
                                     }
+                                    else if( diskAttribute.getNodeName().equalsIgnoreCase("OS") && diskAttribute.hasChildNodes() ) {
+                                        diskOS = diskAttribute.getFirstChild().getNodeValue().trim();
+                                    }
                                 }
                             }
                             else if( roleAttribute.getNodeName().equalsIgnoreCase("RoleName") && roleAttribute.hasChildNodes() ) {
                                 vmRoleName = roleAttribute.getFirstChild().getNodeValue().trim();
+                            }
+                            else if( roleAttribute.getNodeName().equalsIgnoreCase("VMImageName") && roleAttribute.hasChildNodes()) {
+                                vmImageId = roleAttribute.getFirstChild().getNodeValue().trim();
                             }
                             else if( roleAttribute.getNodeName().equalsIgnoreCase("ConfigurationSets") && roleAttribute.hasChildNodes() ) {
                                 NodeList configs = ((Element) roleAttribute).getElementsByTagName("ConfigurationSet");
@@ -1192,7 +1201,10 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                 if( dnsName != null ) {
                     vm.setPublicDnsAddress(dnsName);
                 }
-                if( imageId != null ) {
+                if(vmImageId != null) {
+                    vm.setProviderMachineImageId(vmImageId);
+                    vm.setPlatform(Platform.guess(diskOS));
+                } else if( imageId != null ) {
                     Platform fallback = vm.getPlatform();
 
                     vm.setProviderMachineImageId(imageId);
