@@ -876,7 +876,6 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
     @Override
     public @Nonnull Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
-        getProvider().getComputeServices().getImageSupport().listMachineImages();
         ProviderContext ctx = getProvider().getContext();
 
         if( ctx == null ) {
