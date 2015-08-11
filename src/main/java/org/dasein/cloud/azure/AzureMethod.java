@@ -139,7 +139,7 @@ public class AzureMethod {
             if (uri.toString().indexOf("/services/images") > -1) {
                 get.addHeader("x-ms-version", "2012-08-01");
             }
-            else if(uri.toString().contains("/services/vmimages"))
+            else if((uri.toString().contains("/services/vmimages") || ((uri.toString().contains("services/hostedservices") && (uri.toString().endsWith("embed-detail=true"))))))
             {
                 get.addHeader("x-ms-version", "2014-05-01");
             }
