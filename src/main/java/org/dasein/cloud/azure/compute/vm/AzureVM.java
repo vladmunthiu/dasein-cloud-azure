@@ -20,12 +20,7 @@ package org.dasein.cloud.azure.compute.vm;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.dasein.cloud.*;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.AzureMethod;
@@ -35,6 +30,7 @@ import org.dasein.cloud.azure.compute.vm.model.ConfigurationSetModel;
 import org.dasein.cloud.azure.compute.vm.model.CreateHostedServiceModel;
 import org.dasein.cloud.azure.compute.vm.model.DeploymentModel;
 import org.dasein.cloud.azure.compute.vm.model.Operation;
+import org.dasein.cloud.azure.model.AzureOperationStatus;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.identity.ServiceAction;
@@ -61,19 +57,13 @@ import org.w3c.dom.NodeList;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.bind.JAXBException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.IOException;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
@@ -524,21 +514,33 @@ public class AzureVM extends AbstractVMSupport<Azure> {
             VirtualMachine vm = null ;
 
             if (requestId != null) {
-                int httpCode = method.getOperationStatus(requestId);
-                while (httpCode == -1) {
+                AzureOperationStatus operationStatus = method.get(AzureOperationStatus.class, "/operations/" + requestId);
+                while(operationStatus.getStatus().equalsIgnoreCase("inprogress")) {
                     try {
                         Thread.sleep(15000L);
-                    }
-                    catch (InterruptedException ignored){}
-                    httpCode = method.getOperationStatus(requestId);
+                    }catch (InterruptedException ignored){}
+                    operationStatus = method.get(AzureOperationStatus.class, "/operations/"+ requestId);
                 }
-                if (httpCode == HttpServletResponse.SC_OK) {
-                    try { vm = getVirtualMachine(hostName + ":" + hostName+":"+hostName); }
-                    catch( Throwable ignore ) { }
+
+                vm = getVirtualMachine(hostName + ":" + hostName+":"+hostName);
+                if(operationStatus.getStatus().equalsIgnoreCase("succeeded")) {
                     if( vm != null ) {
                         vm.setRootUser(username);
                         vm.setRootPassword(password);
                     }
+                } else if(operationStatus.getStatus().equalsIgnoreCase("failed")) {
+                    if(vm != null) {
+                        terminate(vm.getProviderVirtualMachineId());
+                    } else {
+                        DeleteHostedService(hostName);
+                    }
+                    String errorMessage = "An error occurred while trying to create deployment for the virtual machine";
+                    errorMessage = errorMessage + String.format("%s reason: %s", operationStatus.getError().getCode(), operationStatus.getError().getMessage());
+                    if(errorMessage.contains("ConflictError") ||  errorMessage.contains("409")){
+                        throw new CloudException(CloudErrorType.GENERAL, 409, operationStatus.getError().getCode(), errorMessage);
+                    }
+
+                    throw new CloudException(errorMessage);
                 }
             }
             else {
@@ -560,6 +562,9 @@ public class AzureVM extends AbstractVMSupport<Azure> {
             if( VmState.STOPPED.equals(vm.getCurrentState()) ) {
                 start(vm.getProviderVirtualMachineId());
             }
+
+            waitForVMRunning(vm.getProviderVirtualMachineId());
+            vm = getVirtualMachine(vm.getProviderVirtualMachineId());
             return vm;
         }
         finally {
@@ -708,7 +713,27 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
         try {
             AzureMethod method = new AzureMethod(getProvider());
-            method.post(HOSTED_SERVICES, createHostedServiceModel);
+            String requestId = method.post(HOSTED_SERVICES, createHostedServiceModel);
+            if (requestId != null) {
+                AzureOperationStatus operationStatus = method.get(AzureOperationStatus.class, "/operations/" + requestId);
+                while(operationStatus.getStatus().equalsIgnoreCase("inprogress")) {
+                    try {
+                        Thread.sleep(15000L);
+                    }catch (InterruptedException ignored){}
+                    operationStatus = method.get(AzureOperationStatus.class, "/operations/"+ requestId);
+                }
+
+                if(operationStatus.getStatus().equalsIgnoreCase("failed")) {
+                    String errorMessage = "An error occurred while trying to launch the virtual machine. Create hosted service failed.";
+                    if(operationStatus.getError() != null) {
+                        errorMessage = errorMessage + String.format("%s reason: %s", operationStatus.getError().getCode(), operationStatus.getError().getMessage());
+                        if(errorMessage.contains("ConflictError") ||  errorMessage.contains("409")){
+                            throw new CloudException(CloudErrorType.GENERAL, 409, operationStatus.getError().getCode(), errorMessage);
+                        }
+                    }
+                    throw new CloudException(errorMessage);
+                }
+            }
         } catch (JAXBException e) {
             logger.error(e.getMessage());
             throw new CloudException(e);
@@ -1772,6 +1797,24 @@ public class AzureVM extends AbstractVMSupport<Azure> {
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 10L);
         while (timeout > System.currentTimeMillis()) {
             if (vm == null || VmState.TERMINATED.equals(vm.getCurrentState())) {
+                break;
+            }
+            try {
+                Thread.sleep(15000L);
+            } catch (InterruptedException ignore) {
+            }
+            try {
+                vm = getVirtualMachine(vmId);
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
+    private void waitForVMRunning(String vmId) throws CloudException, InternalException {
+        VirtualMachine vm = getVirtualMachine(vmId);
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 10L);
+        while (timeout > System.currentTimeMillis()) {
+            if (vm == null || VmState.RUNNING.equals(vm.getCurrentState())) {
                 break;
             }
             try {
