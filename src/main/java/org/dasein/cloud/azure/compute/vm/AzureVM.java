@@ -483,7 +483,13 @@ public class AzureVM extends AbstractVMSupport<Azure> {
             CreateHostedService(options.getDescription(), ctx.getRegionId(), label, hostName, affinityGroupId);
 
 
-            String username = (options.getBootstrapUser() == null || (options.getBootstrapUser().isEmpty()) ? DEFAULT_USERNAME : options.getBootstrapUser());
+            String username;
+            if (image.getPlatform().isWindows()){
+                username = (options.getBootstrapUser() == null || options.getBootstrapUser().trim().length() == 0 || options.getBootstrapUser().equalsIgnoreCase("root") || options.getBootstrapUser().equalsIgnoreCase("admin") || options.getBootstrapUser().equalsIgnoreCase("administrator") ? "dasein" : options.getBootstrapUser());
+            }
+            else{
+                username = (options.getBootstrapUser() == null || options.getBootstrapUser().trim().length() == 0 || options.getBootstrapUser().equals("root") ? "dasein" : options.getBootstrapUser());
+            }
             String password = (options.getBootstrapPassword() == null ? getProvider().generateToken(8, 15) : options.getBootstrapPassword());
 
             Subnet subnet = null;
@@ -502,7 +508,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
             String requestId = null;
             try {
-                requestId = CreateDeployment(options, storageEndpoint, image, label, hostName, deploymentSlot, subnet, vlanName, password);
+                requestId = CreateDeployment(options, storageEndpoint, image, label, hostName, deploymentSlot, subnet, vlanName, username, password);
             }
             catch (CloudException e) {
                 logger.error("Launch server failed - now cleaning up service");
@@ -598,7 +604,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
         }
     }
 
-    private String CreateDeployment(VMLaunchOptions options, String storageEndpoint, AzureMachineImage image, String label, String hostName, String deploymentSlot, Subnet subnet, String vlanName, String password) throws CloudException, InternalException {
+    private String CreateDeployment(VMLaunchOptions options, String storageEndpoint, AzureMachineImage image, String label, String hostName, String deploymentSlot, Subnet subnet, String vlanName, String username, String password) throws CloudException, InternalException {
         DeploymentModel deploymentModel = new DeploymentModel();
         deploymentModel.setName(hostName);
         deploymentModel.setDeploymentSlot(deploymentSlot);
@@ -618,7 +624,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
             windowsConfigurationSetModel.setAdminPassword(password);
             windowsConfigurationSetModel.setEnableAutomaticUpdates("true");
             windowsConfigurationSetModel.setTimeZone("UTC");
-            windowsConfigurationSetModel.setAdminUsername((options.getBootstrapUser() == null || options.getBootstrapUser().trim().length() == 0 || options.getBootstrapUser().equalsIgnoreCase("root") || options.getBootstrapUser().equalsIgnoreCase("admin") || options.getBootstrapUser().equalsIgnoreCase("administrator") ? "dasein" : options.getBootstrapUser()));
+            windowsConfigurationSetModel.setAdminUsername(username);
             if(options.getUserData() != null && !options.getUserData().equals(""))windowsConfigurationSetModel.setCustomData(new String(Base64.encodeBase64(options.getUserData().getBytes())));
             configurations.add(windowsConfigurationSetModel);
         }
@@ -628,7 +634,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
             unixConfigurationSetModel.setConfigurationSetType("LinuxProvisioningConfiguration");
             unixConfigurationSetModel.setType("LinuxProvisioningConfigurationSet");
             unixConfigurationSetModel.setHostName(hostName);
-            unixConfigurationSetModel.setUserName((options.getBootstrapUser() == null || options.getBootstrapUser().trim().length() == 0 || options.getBootstrapUser().equals("root") ? "dasein" : options.getBootstrapUser()));
+            unixConfigurationSetModel.setUserName(username);
             unixConfigurationSetModel.setUserPassword(password);
             unixConfigurationSetModel.setDisableSshPasswordAuthentication("false");
             if(options.getUserData() != null && !options.getUserData().equals(""))unixConfigurationSetModel.setCustomData(new String(Base64.encodeBase64(options.getUserData().getBytes())));
