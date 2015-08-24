@@ -524,10 +524,10 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
                 vm = getVirtualMachine(hostName + ":" + hostName+":"+hostName);
                 if(operationStatus.getStatus().equalsIgnoreCase("succeeded")) {
-                    if( vm != null ) {
-                        vm.setRootUser(username);
-                        vm.setRootPassword(password);
-                    }
+                    //if( vm != null ) {
+                    //    vm.setRootUser(username);
+                    //    vm.setRootPassword(password);
+                    //}
                 } else if(operationStatus.getStatus().equalsIgnoreCase("failed")) {
                     if(vm != null) {
                         terminate(vm.getProviderVirtualMachineId());
@@ -548,8 +548,8 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                     try { vm = getVirtualMachine(hostName + ":" + hostName+":"+hostName); }
                     catch( Throwable ignore ) { }
                     if( vm != null ) {
-                        vm.setRootUser(username);
-                        vm.setRootPassword(password);
+                        //vm.setRootUser(username);
+                        //vm.setRootPassword(password);
                         break;
                     }
                     try { Thread.sleep(15000L); }
@@ -565,6 +565,8 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
             waitForVMRunning(vm.getProviderVirtualMachineId());
             vm = getVirtualMachine(vm.getProviderVirtualMachineId());
+            vm.setRootUser(username);
+            vm.setRootPassword(password);
             return vm;
         }
         finally {
