@@ -163,7 +163,7 @@ public class VMCapabilities extends AbstractCapabilities<Azure> implements Virtu
     @Nonnull
     @Override
     public Requirement identifyShellKeyRequirement( Platform platform ) throws CloudException, InternalException {
-        return Requirement.OPTIONAL;
+        return Requirement.NONE;
     }
 
     @Nonnull
