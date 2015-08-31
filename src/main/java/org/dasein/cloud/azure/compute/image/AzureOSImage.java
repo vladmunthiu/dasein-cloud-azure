@@ -682,13 +682,7 @@ public class AzureOSImage extends AbstractImageSupport<Azure> {
         }
 
         String region = isGloabalQuery ? "" : URLEncoder.encode(ctx.getRegionId());
-        String category = "";
-        if(isPrivate){
-            category = "user";
-        }
-        else if(isPublic){
-            category = "public";
-        }
+        String category = (isPrivate && isPublic) ? "" : (isPrivate ? "user" : "public");
 
         ArrayList<MachineImage> images = new ArrayList<MachineImage>();
         AzureMethod azureMethod = new AzureMethod(provider);
