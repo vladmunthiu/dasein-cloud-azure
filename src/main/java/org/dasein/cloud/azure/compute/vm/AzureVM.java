@@ -19,6 +19,7 @@
 package org.dasein.cloud.azure.compute.vm;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.http.client.methods.RequestBuilder;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.azure.Azure;
@@ -40,6 +41,7 @@ import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.cloud.util.requester.fluent.DaseinRequest;
 import org.dasein.util.CalendarWrapper;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -83,7 +85,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     static public final String DEFAULT_USERNAME = "dasein";
 
     static public final String HOSTED_SERVICES = "/services/hostedservices";
-    static public final String DEPLOYMENT_RESOURCE = "/services/hostedservices/%s/deployments/%s";
+    static public final String DEPLOYMENT_RESOURCE = "%s/%s/services/hostedservices/%s/deployments/%s";
     static public final String OPERATIONS_RESOURCES = "/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
 
     public AzureVM(Azure provider) {
@@ -1752,8 +1754,11 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     }
 
     private boolean canDeleteDeployment(String serviceName, String deploymentName, String roleName) throws CloudException, InternalException {
-        AzureMethod azureMethod = new AzureMethod(getProvider());
-        DeploymentModel deploymentModel = azureMethod.get(DeploymentModel.class, String.format(DEPLOYMENT_RESOURCE, serviceName, deploymentName));
+        String deploymentUri = String.format(DEPLOYMENT_RESOURCE, getProvider().getContext().getCloud().getEndpoint(), getProvider().getContext().getAccountNumber(), serviceName, deploymentName);
+        DeploymentModel deploymentModel = new DaseinRequest(getProvider(),
+                getProvider().getAzureClientBuilder(),
+                RequestBuilder.get().addHeader("x-ms-version", "2014-05-01").setUri(deploymentUri).build())
+                .withXmlProcessor(DeploymentModel.class).execute();
 
         if(deploymentModel.getRoles() == null)
             return true;
