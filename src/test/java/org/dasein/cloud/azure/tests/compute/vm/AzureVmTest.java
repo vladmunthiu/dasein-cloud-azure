@@ -18,188 +18,72 @@
 
 package org.dasein.cloud.azure.tests.compute.vm;
 
-import mockit.*;
+import mockit.Mock;
+import mockit.MockUp;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.StatusLine;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.azure.Azure;
-import org.dasein.cloud.azure.AzureLocation;
-import org.dasein.cloud.azure.AzureMethod;
-import org.dasein.cloud.azure.compute.vm.AzureVM;
-import org.dasein.cloud.compute.VMScalingOptions;
 import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.dc.DataCenter;
-import org.dasein.cloud.azure.tests.TestHelpers;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
+import javax.servlet.http.HttpServletResponse;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import org.apache.log4j.Logger;
-import org.w3c.dom.Document;
 
 /**
  * Created by Vlad_Munthiu on 6/6/2014.
  */
-public class AzureVmTest {
-
-    private AzureVM sut;
-    @Mocked ProviderContext providerContextMock;
-    @Mocked AzureMethod azureMethodMock;
-    @Mocked Azure azureMock;
-    @Mocked AzureLocation azureLocationMock;
-    @Mocked DataCenter dataCenterMock;
-
-    final String ACCOUNT_NO = "12323232323";
-    final String REGION = "East US";
-    final String SERVICE_NAME = "svctest1425";
-    final String DEPLOYMENT_NAME = "depltest1425";
-    final String ROLE_NAME = "roletest1425";
-    final String VM_NAME = "dmtest1425";
-    final String VM_ID = SERVICE_NAME + ":" + DEPLOYMENT_NAME + ":" + ROLE_NAME;
-
-    @Before
-    public void setUp() {
-
-        new NonStrictExpectations() {
-            { azureMock.getContext(); result = providerContextMock; }
-            { azureMock.getDataCenterServices(); result = azureLocationMock; }
-            { Azure.getLogger(AzureVM.class); result = Logger.getLogger(anyString); }
-        };
-
-        new NonStrictExpectations() {
-            { providerContextMock.getAccountNumber(); result = ACCOUNT_NO; }
-            { providerContextMock.getRegionId(); result = REGION; }
-        };
-
-        sut = new AzureVM(azureMock);
-    }
-
-
-    /*@Test
-    public void getVirtualMachineShouldReturnVirtualMachineObject() throws CloudException, InternalException {
-
-
-        new NonStrictExpectations() {
-            { azureMethodMock.getAsXML(ACCOUNT_NO, AzureVM.HOSTED_SERVICES + "/" + SERVICE_NAME +"?embed-detail=true"); result = TestHelpers.getMockXmlResponse("/xmlResponses/HostedService-Details.xml"); }
-            { azureMethodMock.getAsXML(ACCOUNT_NO, AzureVM.HOSTED_SERVICES + "/"+SERVICE_NAME+"/deployments/" + DEPLOYMENT_NAME); result = TestHelpers.getMockXmlResponse("/xmlResponses/HostedService-Deployment.xml"); }
-        };
-
-        final Collection<DataCenter> dcs = new ArrayList<DataCenter>(Arrays.asList(dataCenterMock));
-
-        new NonStrictExpectations() {
-            { dataCenterMock.getProviderDataCenterId(); result = REGION; }
-            { dataCenterMock.getRegionId(); result = REGION; }
-            { azureLocationMock.listDataCenters(REGION); result = dcs; }
-            { azureLocationMock.getDataCenter(anyString); result = dataCenterMock; }
-        };
-
-        VirtualMachine result = sut.getVirtualMachine(VM_ID);
-
-        assertNotNull("Virtual machine shouldn't be null", result);
-        assertEquals("Invalid vm service name", SERVICE_NAME, result.getTag("serviceName"));         //TODO: replace these magic strings with enums
-        assertEquals("Invalid vm deployment name", DEPLOYMENT_NAME, result.getTag("deploymentName"));
-        assertEquals("Invalid vm role name", ROLE_NAME, result.getTag("roleName"));
-
-    }*/
-
+public class AzureVmTest extends AzureVMTestsBase {
     @Test
     public void startShouldPostCorrectRequest()throws CloudException, InternalException{
+        final VirtualMachine virtualMachine = new VirtualMachine();
+        virtualMachine.addTag("serviceName", SERVICE_NAME);
+        virtualMachine.addTag("deploymentName", DEPLOYMENT_NAME);
+        virtualMachine.addTag("roleName", ROLE_NAME);
+        virtualMachine.setProviderVirtualMachineId(VM_ID);
 
-        sut = new AzureVmPartialMock(azureMock);
+        final StatusLine mockedStatusLine = new MockUp<StatusLine>(){
+            @Mock
+            public int getStatusCode() {
+                return HttpServletResponse.SC_OK;
+            }
+        }.getMockInstance();
 
-        final String expectedPost = TestHelpers.getStringXmlRequest("/xmlRequests/StartRoleOperation.xml");
+        final CloseableHttpResponse mockedHttpResponse = new MockUp<CloseableHttpResponse>(){
+            @Mock
+            public StatusLine getStatusLine() {
+                return mockedStatusLine;
+            }
 
-        new NonStrictExpectations() {
-            { azureMethodMock.post(ACCOUNT_NO,
-                    String.format("%1$s/%2$s/deployments/%3$s/roleInstances/%4$s/Operations", AzureVM.HOSTED_SERVICES, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME),
-                    expectedPost); times = 1; }
+            @Mock
+            public HttpEntity getEntity() {
+                return null;
+            }
+
+            @Mock
+            public Header[] getAllHeaders() {
+                return new Header[0];
+            }
+        }.getMockInstance();
+
+        final String expectedUrl = String.format("%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                assertEquals("Start method shoould do a POST", "POST", request.getMethod());
+                assertEquals("Start method does not post to the correct url", expectedUrl, request.getURI().toString());
+
+                return mockedHttpResponse;
+            }
         };
 
-        sut.start(VM_ID);
-    }
-
-
-    @Test
-    @Ignore("This test will fail because we do not update the xml correctly - what gets posted is ExtraSmall instead of Large")
-    public void alterVmShouldPostCorrectRequest()throws CloudException, InternalException{
-
-        final VirtualMachine vm = new VirtualMachine();
-        vm.addTag("serviceName", SERVICE_NAME);
-        vm.addTag("deploymentName", DEPLOYMENT_NAME);
-        vm.addTag("roleName", ROLE_NAME);
-
-        sut = new AzureVmPartialMock(azureMock);
-
-        final String vmUrl = String.format("%1$s/%2$s/deployments/%3$s/roles/%4$s", AzureVM.HOSTED_SERVICES, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
-
-        final String role_request_id = "role-request-id-123456";
-        final String disk_request_id = "disk-request-id-123456";
-
-        new MockUp<System>() {
-            @Mock @SuppressWarnings("unused") long currentTimeMillis() { return 1378777034215l; }
-        };
-
-        new NonStrictExpectations() {
-            { azureMethodMock.getAsXML(ACCOUNT_NO, vmUrl); result = TestHelpers.getMockXmlResponse("/xmlResponses/HostedService-Role-ExtraSmall.xml"); }
-
-            //request xml should be changed to Large from ExtraSmall
-            { azureMethodMock.invoke("PUT", ACCOUNT_NO, vmUrl, TestHelpers.getStringXmlRequestAsSingleLine("/xmlRequests/HostedService-Role-Large.xml")); result = role_request_id; times = 1; }
-            { azureMethodMock.getOperationStatus(role_request_id); result = 200; times = 1;}
-
-            //because we're modfying disks too - the correct request should be sent
-            { azureMock.getStorageEndpoint(); result = "http://portalvhdsc8vf26rnz7rnm.blob.core.windows.net/";}
-            { azureMethodMock.post(ACCOUNT_NO, vmUrl+ "/DataDisks", TestHelpers.getStringXmlRequestAsSingleLine("/xmlRequests/DataVirtualHardDisk.xml")); result = disk_request_id; times = 1; }
-            { azureMethodMock.getOperationStatus(disk_request_id); result = 200; times = 1;}
-        };
-
-        VMScalingOptions options = VMScalingOptions.getInstance("Large:[20]");
-
-        sut.alterVirtualMachine(VM_ID, options);
-    }
-
-    @Test
-    @Ignore("work in progress")
-    public void listVirtualMachineStatusShouldReturnCorrectList()throws CloudException, InternalException{
-        new NonStrictExpectations() {
-            { azureMethodMock.getAsXML(ACCOUNT_NO, AzureVM.HOSTED_SERVICES); result = TestHelpers.getMockXmlResponse("/xmlResponses/HostedServices.xml"); }
-
-            { azureLocationMock.getDataCenter(REGION); result = dataCenterMock; }
-            { dataCenterMock.getRegionId(); result = REGION; }
-        };
-
-        Iterable<ResourceStatus> result = sut.listVirtualMachineStatus();
-
-
-    }
-
-
-    /*
-        Using partial mock works as well eg.
-            new NonStrictExpectations(sut) {
-                { invoke(sut, "getVirtualMachine", VM_ID); result = vm; times = 1;}
-            };
-
-        but it messes up the debug lines, so until they fix-it I think it's better to use this way
-    */
-    class AzureVmPartialMock extends AzureVM{
-        public AzureVmPartialMock(Azure provider) {
-            super(provider);
-        }
-
-        public VirtualMachine getVirtualMachine(String vmId){
-            final VirtualMachine vm = new VirtualMachine();
-            vm.addTag("serviceName", SERVICE_NAME);
-            vm.addTag("deploymentName", DEPLOYMENT_NAME);
-            vm.addTag("roleName", ROLE_NAME);
-
-            return vm;
-        }
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, virtualMachine);
+        azureVMSupport.start(VM_ID);
     }
 }

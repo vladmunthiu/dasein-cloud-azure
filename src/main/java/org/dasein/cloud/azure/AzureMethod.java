@@ -440,13 +440,13 @@ public class AzureMethod {
     }
 
     public String post(@Nonnull String account, @Nonnull String resource, @Nonnull String body) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("enter - " + AzureMethod.class.getName() + ".post(" + account + "," + resource + ")");
-        }
-        if( wire.isDebugEnabled() ) {
-            wire.debug("POST --------------------------------------------------------> " + endpoint + account + resource);
-            wire.debug("");
-        }
+//        if( logger.isTraceEnabled() ) {
+//            logger.trace("enter - " + AzureMethod.class.getName() + ".post(" + account + "," + resource + ")");
+//        }
+//        if( wire.isDebugEnabled() ) {
+//            wire.debug("POST --------------------------------------------------------> " + endpoint + account + resource);
+//            wire.debug("");
+//        }
         String requestId = null;
         try {
             HttpClient client = getClient();
@@ -477,17 +477,17 @@ public class AzureMethod {
             	post.addHeader("Content-Type", "application/xml;charset=UTF-8");
             }
             
-            if( wire.isDebugEnabled() ) {
-                wire.debug(post.getRequestLine().toString());
-                for( Header header : post.getAllHeaders() ) {
-                    wire.debug(header.getName() + ": " + header.getValue());
-                }
-                wire.debug("");
-                if( body != null ) {
-                    wire.debug(body);
-                    wire.debug("");
-                }
-            }
+//            if( wire.isDebugEnabled() ) {
+//                wire.debug(post.getRequestLine().toString());
+//                for( Header header : post.getAllHeaders() ) {
+//                    wire.debug(header.getName() + ": " + header.getValue());
+//                }
+//                wire.debug("");
+//                if( body != null ) {
+//                    wire.debug(body);
+//                    wire.debug("");
+//                }
+//            }
             if( body != null ) {
                 try {
                 	 if(url.endsWith("/services/networking/media")){
@@ -515,32 +515,32 @@ public class AzureMethod {
                 }
                 throw new CloudException(e);
             }
-            if( logger.isDebugEnabled() ) {
-                logger.debug("post(): HTTP Status " + status);
-            }
+//            if( logger.isDebugEnabled() ) {
+//                logger.debug("post(): HTTP Status " + status);
+//            }
             Header[] headers = response.getAllHeaders();
 
-            if( wire.isDebugEnabled() ) {
-                wire.debug(status.toString());
-            }
-            for( Header h : headers ) {
-                if( h.getValue() != null ) {
-                    if( wire.isDebugEnabled() ) {
-                        wire.debug(h.getName() + ": " + h.getValue().trim());
-                    }
-                    if (h.getName().equalsIgnoreCase("x-ms-request-id")) {
-                        requestId = h.getValue().trim();
-                    }
-                }
-                else {
-                    if( wire.isDebugEnabled() ) {
-                        wire.debug(h.getName() + ":");
-                    }
-                }
-            }
-            if( wire.isDebugEnabled() ) {
-                wire.debug("");
-            }
+//            if( wire.isDebugEnabled() ) {
+//                wire.debug(status.toString());
+//            }
+//            for( Header h : headers ) {
+//                if( h.getValue() != null ) {
+//                    if( wire.isDebugEnabled() ) {
+//                        wire.debug(h.getName() + ": " + h.getValue().trim());
+//                    }
+//                    if (h.getName().equalsIgnoreCase("x-ms-request-id")) {
+//                        requestId = h.getValue().trim();
+//                    }
+//                }
+//                else {
+//                    if( wire.isDebugEnabled() ) {
+//                        wire.debug(h.getName() + ":");
+//                    }
+//                }
+//            }
+//            if( wire.isDebugEnabled() ) {
+//                wire.debug("");
+//            }
             if( status.getStatusCode() != HttpServletResponse.SC_OK && status.getStatusCode() != HttpServletResponse.SC_CREATED && status.getStatusCode() != HttpServletResponse.SC_ACCEPTED ) {
                 logger.error("post(): Expected OK for GET request, got " + status.getStatusCode());
 
@@ -555,27 +555,27 @@ public class AzureMethod {
                 catch( IOException e ) {
                     throw new AzureException(CloudErrorType.GENERAL, status.getStatusCode(), status.getReasonPhrase(), e.getMessage());
                 }
-                if( wire.isDebugEnabled() ) {
-                    wire.debug(body);
-                }
-                wire.debug("");
+//                if( wire.isDebugEnabled() ) {
+//                    wire.debug(body);
+//                }
+//                wire.debug("");
                 AzureException.ExceptionItems items = AzureException.parseException(status.getStatusCode(), body);
 
                 if( items == null ) {
                     throw new CloudException(CloudErrorType.GENERAL, status.getStatusCode(), "Unknown", "Unknown");
                 }
-                logger.error("post(): [" + status.getStatusCode() + " : " + items.message + "] " + items.details);
+                //logger.error("post(): [" + status.getStatusCode() + " : " + items.message + "] " + items.details);
                 throw new AzureException(items);
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("exit - " + AzureMethod.class.getName() + ".post()");
-            }
-            if( wire.isDebugEnabled() ) {
-                wire.debug("");
-                wire.debug("POST --------------------------------------------------------> " + endpoint + account + resource);
-            }
+//            if( logger.isTraceEnabled() ) {
+//                logger.trace("exit - " + AzureMethod.class.getName() + ".post()");
+//            }
+//            if( wire.isDebugEnabled() ) {
+//                wire.debug("");
+//                wire.debug("POST --------------------------------------------------------> " + endpoint + account + resource);
+//            }
         }
         return requestId;
     }
