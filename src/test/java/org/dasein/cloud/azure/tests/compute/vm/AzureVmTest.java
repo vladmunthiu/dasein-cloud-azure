@@ -119,17 +119,17 @@ public class AzureVmTest extends AzureVMTestsBase {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
                 if(inv.getInvocationCount() == 1) {
-                    assertEquals("Start method shoould do a GET", "GET", request.getMethod());
-                    assertEquals("Start method should do a GET to the correct url", expectedUrl, request.getURI().toString());
+                    assertEquals("Alter method shoould do a GET", "GET", request.getMethod());
+                    assertEquals("Alter method should do a GET to the correct url", expectedUrl, request.getURI().toString());
 
                     return getHttpResponseMock;
                 } else {
-                    assertEquals("Start method should do a PUT", "PUT", request.getMethod());
-                    assertEquals("Start method should do a PUT to the correct url", expectedUrl, request.getURI().toString());
+                    assertEquals("Alter method should do a PUT", "PUT", request.getMethod());
+                    assertEquals("Alter method should do a PUT to the correct url", expectedUrl, request.getURI().toString());
                     PersistentVMRoleModel putObject = new XmlStreamToObjectProcessor<PersistentVMRoleModel>().read(((HttpPut)request).getEntity().getContent(), PersistentVMRoleModel.class);
+                    assertEquals("Alter method should change the produc size", "Small", putObject.getRoleSize());
                     return putHttpResponseMock;
                 }
-
             }
         };
 
