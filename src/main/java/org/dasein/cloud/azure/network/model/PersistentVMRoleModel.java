@@ -40,6 +40,8 @@ public class PersistentVMRoleModel
     private List<ConfigurationSet> configurationSets;
     @XmlElement(name="OSVirtualHardDisk", namespace ="http://schemas.microsoft.com/windowsazure")
     private OSVirtualHardDisk osVirtualHardDisk;
+    @XmlElement(name = "RoleSize", namespace = "http://schemas.microsoft.com/windowsazure")
+    private String roleSize;
 
     public String getRoleName() {
         return roleName;
@@ -79,6 +81,14 @@ public class PersistentVMRoleModel
 
     public void setOsVirtualHardDisk(OSVirtualHardDisk osVirtualHardDisk) {
         this.osVirtualHardDisk = osVirtualHardDisk;
+    }
+
+    public String getRoleSize() {
+        return roleSize;
+    }
+
+    public void setRoleSize(String roleSize) {
+        this.roleSize = roleSize;
     }
 
     @XmlRootElement(name="ConfigurationSet", namespace ="http://schemas.microsoft.com/windowsazure")

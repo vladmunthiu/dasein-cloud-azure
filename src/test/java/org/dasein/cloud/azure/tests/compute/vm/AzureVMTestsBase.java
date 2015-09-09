@@ -1,7 +1,13 @@
 package org.dasein.cloud.azure.tests.compute.vm;
 
+import mockit.Mock;
+import mockit.MockUp;
 import mockit.Mocked;
 import mockit.NonStrictExpectations;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.StatusLine;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureLocation;
@@ -45,5 +51,33 @@ public class AzureVMTestsBase {
             { providerContextMock.getRegionId(); result = REGION; }
             { providerContextMock.getEndpoint(); result = ENDPOINT;}
         };
+    }
+
+    protected StatusLine getStatusLineMock(final int statusCode){
+        return new MockUp<StatusLine>(){
+            @Mock
+            public int getStatusCode() {
+                return statusCode;
+            }
+        }.getMockInstance();
+    }
+
+    protected CloseableHttpResponse getHttpResponseMock(final StatusLine statusLine, final HttpEntity httpEntity, final Header[] headers){
+        return new MockUp<CloseableHttpResponse>(){
+            @Mock
+            public StatusLine getStatusLine() {
+                return statusLine;
+            }
+
+            @Mock
+            public HttpEntity getEntity() {
+                return httpEntity;
+            }
+
+            @Mock
+            public Header[] getAllHeaders() {
+                return headers;
+            }
+        }.getMockInstance();
     }
 }
