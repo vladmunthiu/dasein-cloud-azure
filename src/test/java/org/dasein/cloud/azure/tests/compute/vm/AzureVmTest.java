@@ -21,13 +21,19 @@ package org.dasein.cloud.azure.tests.compute.vm;
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
+import org.apache.commons.collections.Closure;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.Predicate;
+import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.azure.AzureConfigException;
@@ -40,8 +46,13 @@ import org.junit.Test;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
 
+import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertGet;
+import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertPut;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by Vlad_Munthiu on 6/6/2014.
@@ -103,7 +114,7 @@ public class AzureVmTest extends AzureVMTestsBase {
         virtualMachine.addTag("roleName", ROLE_NAME);
         virtualMachine.setProviderVirtualMachineId(VM_ID);
 
-        PersistentVMRoleModel persistentVMRoleModel = new PersistentVMRoleModel();
+        final PersistentVMRoleModel persistentVMRoleModel = new PersistentVMRoleModel();
         persistentVMRoleModel.setRoleName(VM_NAME);
         persistentVMRoleModel.setOsVersion("OSVERSION");
         persistentVMRoleModel.setRoleType("ROLETYPES");
@@ -119,15 +130,11 @@ public class AzureVmTest extends AzureVMTestsBase {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
                 if(inv.getInvocationCount() == 1) {
-                    assertEquals("Alter method shoould do a GET", "GET", request.getMethod());
-                    assertEquals("Alter method should do a GET to the correct url", expectedUrl, request.getURI().toString());
-
+                    assertGet(request, expectedUrl);
                     return getHttpResponseMock;
                 } else {
-                    assertEquals("Alter method should do a PUT", "PUT", request.getMethod());
-                    assertEquals("Alter method should do a PUT to the correct url", expectedUrl, request.getURI().toString());
-                    PersistentVMRoleModel putObject = new XmlStreamToObjectProcessor<PersistentVMRoleModel>().read(((HttpPut)request).getEntity().getContent(), PersistentVMRoleModel.class);
-                    assertEquals("Alter method should change the produc size", "Small", putObject.getRoleSize());
+                    persistentVMRoleModel.setRoleSize("Small");
+                    assertPut(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2012-03-01")}, persistentVMRoleModel);
                     return putHttpResponseMock;
                 }
             }
