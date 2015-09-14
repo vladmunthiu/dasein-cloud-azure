@@ -20,14 +20,11 @@ package org.dasein.cloud.azure.tests;
 
 import mockit.*;
 import org.dasein.cloud.CloudException;
-import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureMethod;
 import org.junit.Test;
-import sun.misc.IOUtils;
-import sun.nio.cs.StandardCharsets;
 
 import javax.annotation.Nonnull;
 import javax.xml.bind.JAXBContext;
@@ -40,11 +37,9 @@ import javax.xml.bind.annotation.XmlRootElement;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 /**
  * Created by Vlad_Munthiu on 6/13/2014.

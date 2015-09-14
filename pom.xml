@@ -98,9 +98,10 @@
         </dependency>
 
         <dependency>
-            <groupId>mockit</groupId>
+            <groupId>org.jmockit</groupId>
             <artifactId>jmockit</artifactId>
-            <version>0.999.4</version>
+            <version>1.19</version>
+            <scope>test</scope>
         </dependency>
 
         <!-- Test -->

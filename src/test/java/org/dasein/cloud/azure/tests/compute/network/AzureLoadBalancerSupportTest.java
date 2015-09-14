@@ -176,7 +176,7 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void testAddServer() throws InternalException, JAXBException, CloudException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+//not in 1.7 version            { invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
         };
 
         new MockUp<AzureMethod>(){
@@ -206,7 +206,7 @@ public class AzureLoadBalancerSupportTest {
         expectedDefinitionModel.getPolicy().getEndPoints().add(expectedEndPointToRemove);
 
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+//not in 1.7 version            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
         };
 
         new MockUp<AzureMethod>(){
@@ -229,8 +229,8 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void getLoadBalancerByIdReturnsALoadBalancerWithSameId() throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getProfile", LOAD_BALANCER_ID); result = expectedProfileModel; times = 1;}
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+// not in 1.7 version            {invoke(lbSupport, "getProfile", LOAD_BALANCER_ID); result = expectedProfileModel; times = 1;}
+//not in 1.7 version            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
 
         };
         LoadBalancer loadBalancer = lbSupport.getLoadBalancer(LOAD_BALANCER_ID);
@@ -247,8 +247,8 @@ public class AzureLoadBalancerSupportTest {
     @Ignore("This should pass when merge to develop due to bug fixed in LoadBalancerHealthCheck.getInstance")
     public void testlistLBHealthChecks(@Injectable final HealthCheckFilterOptions optionsMoked) throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getProfiles"); result = expectedProfilesModel; times = 1;}
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+            //not in 1.7 version             {invoke(lbSupport, "getProfiles"); result = expectedProfilesModel; times = 1;}
+            //not in 1.7 version {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
             {optionsMoked.matches(withInstanceOf(LoadBalancerHealthCheck.class)); result = true;}
         };
 
@@ -275,7 +275,7 @@ public class AzureLoadBalancerSupportTest {
     public void testGetLoadBalancerHealthCheck() throws CloudException, InternalException {
 
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+//not in 1.7 version             {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
         };
 
         LoadBalancerHealthCheck expectedLBHC = lbSupport.getLoadBalancerHealthCheck(LOAD_BALANCER_ID, LOAD_BALANCER_ID);
@@ -299,7 +299,7 @@ public class AzureLoadBalancerSupportTest {
 
         new NonStrictExpectations(lbSupport){
             {azureVMSupportMoked.listVirtualMachines(); result = new ArrayList<VirtualMachine>(Arrays.asList(vm));}
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+//not in 1.7 version             {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
         };
 
         ArrayList<LoadBalancerEndpoint> actualEndPoints = (ArrayList<LoadBalancerEndpoint>) lbSupport.listEndpoints(LOAD_BALANCER_ID);
@@ -330,7 +330,7 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void testListLBReturnsEmptyArrayWhenNullProfilesAreRetrieved() throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getProfiles"); result = null; times = 1;}
+//not in 1.7 version             {invoke(lbSupport, "getProfiles"); result = null; times = 1;}
         };
         Iterable<LoadBalancer> loadBalancers = lbSupport.listLoadBalancers();
 
@@ -346,7 +346,7 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void testListLBReturnsEmptyArrayWhenEmptyProfilesCollectionIsRetrieved() throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getProfiles"); result = new ProfilesModel(); times = 1;}
+//not in 1.7 version             {invoke(lbSupport, "getProfiles"); result = new ProfilesModel(); times = 1;}
         };
         Iterable<LoadBalancer> loadBalancers = lbSupport.listLoadBalancers();
 
@@ -362,8 +362,8 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void testListLBReturnsCorrectListOfLoadBalancers() throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getProfiles"); result = expectedProfilesModel; times = 1;}
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+            //not in 1.7 version             {invoke(lbSupport, "getProfiles"); result = expectedProfilesModel; times = 1;}
+            //not in 1.7 version {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
         };
         ArrayList<LoadBalancer> loadBalancers = (ArrayList<LoadBalancer>) lbSupport.listLoadBalancers();
 
@@ -380,8 +380,8 @@ public class AzureLoadBalancerSupportTest {
     @Test
     public void testModifyLBHealthCheck() throws CloudException, InternalException {
         new NonStrictExpectations(lbSupport){
-            {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
-            {invoke(lbSupport, "getLoadBalancerHealthCheck", LOAD_BALANCER_ID, String.class); result = null; times = 1;}
+            //not in 1.7 version   {invoke(lbSupport, "getDefinition", LOAD_BALANCER_ID); result = expectedDefinitionModel; times = 1;}
+            //not in 1.7 version {invoke(lbSupport, "getLoadBalancerHealthCheck", LOAD_BALANCER_ID, String.class); result = null; times = 1;}
         };
 
         new MockUp<AzureMethod>(){
