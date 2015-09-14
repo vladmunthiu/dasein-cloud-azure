@@ -96,6 +96,11 @@ public class AzureLoadBalancerCapabilities extends AbstractCapabilities<Azure> i
         return true;
     }
 
+    @Override
+    public boolean healthCheckRequiresListener() throws CloudException, InternalException {
+        return false;
+    }
+
     /**
      * Indicates whether a name is required when creating a health check
      *

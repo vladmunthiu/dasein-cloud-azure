@@ -18,15 +18,13 @@
 
 package org.dasein.cloud.azure.network;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.azure.Azure;
-import org.dasein.cloud.network.VPNCapabilities;
-import org.dasein.cloud.network.VPNProtocol;
+import org.dasein.cloud.network.VpnCapabilities;
+import org.dasein.cloud.network.VpnProtocol;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 
 /**
@@ -35,19 +33,65 @@ import java.util.Collections;
  * Date: 05/03/2014
  * Time: 14:34
  */
-public class AzureVPNCapabilities extends AbstractCapabilities<Azure> implements VPNCapabilities{
+public class AzureVPNCapabilities extends AbstractCapabilities<Azure> implements VpnCapabilities {
     public AzureVPNCapabilities(@Nonnull Azure provider) {
         super(provider);
     }
 
+    @Nonnull
     @Override
-    public Requirement getVPNDataCenterConstraint() throws CloudException, InternalException {
+    public Iterable<VpnProtocol> listSupportedVpnProtocols() throws CloudException, InternalException {
+        return Collections.emptyList();
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVpnVisibleScope() {
+        return VisibleScope.ACCOUNT_REGION;
+    }
+
+    @Override
+    public Requirement identifyLabelsRequirement() throws CloudException, InternalException {
         return Requirement.NONE;
     }
 
-    @Nonnull
     @Override
-    public Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
-        return Collections.emptyList();
+    public Requirement identifyVlanIdRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyDataCenterIdRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewayCidrRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewaySharedSecretRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewayBgpAsnRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewayVlanNameRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewayVpnNameRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public boolean supportsAutoConnect() throws CloudException, InternalException {
+        return false;
     }
 }
