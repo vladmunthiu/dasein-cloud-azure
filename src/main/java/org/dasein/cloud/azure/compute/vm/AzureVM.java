@@ -233,7 +233,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     }
 
     private boolean isValidProductId(String productId) throws CloudException, InternalException {
-        Iterable<VirtualMachineProduct> products = listProducts(Architecture.I64);
+        Iterable<VirtualMachineProduct> products = listProducts(null, null);
         for (VirtualMachineProduct p : products) {
             if (p.getProviderProductId().equals(productId)) {
                 return true;
@@ -275,7 +275,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
     @Override
     public @Nullable VirtualMachineProduct getProduct(@Nonnull String productId) throws InternalException, CloudException {
-        for( VirtualMachineProduct product : listProducts(null, Architecture.I64) ) {
+        for( VirtualMachineProduct product : listProducts(null, null) ) {
             if( product.getProviderProductId().equals(productId) ) {            	
                 return product;
             }
@@ -756,10 +756,10 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     }
 
     @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nullable VirtualMachineProductFilterOptions options, @Nonnull Architecture architecture) throws InternalException, CloudException {
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId, @Nonnull VirtualMachineProductFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVMProducts");
         try {
-            Cache<VirtualMachineProduct> cache = Cache.getInstance(getProvider(), "products" + architecture.name(), VirtualMachineProduct.class, CacheLevel.REGION, new TimePeriod<Day>(1, TimePeriod.DAY));
+            Cache<VirtualMachineProduct> cache = Cache.getInstance(getProvider(), "products" + machineImageId, VirtualMachineProduct.class, CacheLevel.REGION, new TimePeriod<Day>(1, TimePeriod.DAY));
             Iterable<VirtualMachineProduct> products = cache.get(getContext());
 
             if( products == null ) {
@@ -818,21 +818,6 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                             JSONObject product = plist.getJSONObject(i);
                             boolean supported = false;
 
-                            if( product.has("architectures") ) {
-                                JSONArray architectures = product.getJSONArray("architectures");
-
-                                for( int j=0; j<architectures.length(); j++ ) {
-                                    String a = architectures.getString(j);
-
-                                    if( architecture.name().equals(a) ) {
-                                        supported = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if( !supported ) {
-                                continue;
-                            }
                             if( product.has("excludesRegions") ) {
                                 JSONArray regions = product.getJSONArray("excludesRegions");
 

@@ -131,6 +131,11 @@ public class OSImageCapabilities extends AbstractCapabilities<Azure> implements 
     }
 
     @Override
+    public boolean supportsImageRemoval() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
     public boolean supportsImageSharing() throws CloudException, InternalException {
         return false;
     }

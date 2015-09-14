@@ -36,19 +36,12 @@ import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.disk.AzureDisk;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.VPN;
-import org.dasein.cloud.network.VPNCapabilities;
-import org.dasein.cloud.network.VPNConnection;
-import org.dasein.cloud.network.VPNGateway;
-import org.dasein.cloud.network.VPNGatewayState;
-import org.dasein.cloud.network.VPNProtocol;
-import org.dasein.cloud.network.VPNState;
-import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.network.*;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-public class AzureVPNSupport implements VPNSupport {	
+public class AzureVPNSupport implements VpnSupport {
     static private final Logger logger = Azure.getLogger(AzureVPNSupport.class);
 
 	static private final String NETWORKING_SERVICES = "/services/networking";
@@ -77,7 +70,7 @@ public class AzureVPNSupport implements VPNSupport {
 	 * Vlan was created when the VPN created
 	 */
 	@Override
-	public void attachToVLAN(String providerVpnId, String providerVlanId) throws CloudException, InternalException {
+	public void attachToVlan(String providerVpnId, String providerVlanId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 
 	}
@@ -110,7 +103,7 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public VPN createVPN(String inProviderDataCenterId, String name,String description, VPNProtocol protocol) throws CloudException, InternalException {
+	public Vpn createVpn(String inProviderDataCenterId, String name,String description, VpnProtocol protocol) throws CloudException, InternalException {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER: " + AzureVPNSupport.class.getName() + ".createVPN()");
         }
@@ -163,14 +156,21 @@ public class AzureVPNSupport implements VPNSupport {
             }
         }
 	}
-	private String getAffinityGroup(String vlanName){
+
+    @Nonnull
+    @Override
+    public Vpn createVpn(@Nonnull VpnCreateOptions vpnLaunchOptions) throws CloudException, InternalException {
+        return createVpn(vpnLaunchOptions.getProviderDataCenterId(), vpnLaunchOptions.getName(),vpnLaunchOptions.getDescription(),vpnLaunchOptions.getProtocol() );
+    }
+
+    private String getAffinityGroup(String vlanName){
 		//TODO
 		return "Group1";
 	}
 	
 	// Create local network for connecting VPN?
 	@Override
-	public VPNGateway createVPNGateway(String endpoint, String name,String description, VPNProtocol protocol, String bgpAsn)throws CloudException, InternalException {
+	public VpnGateway createVpnGateway(String endpoint, String name,String description, VpnProtocol protocol, String bgpAsn)throws CloudException, InternalException {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER: " + AzureVPNSupport.class.getName() + ".createVPNGateway()");
         }
@@ -224,15 +224,21 @@ public class AzureVPNSupport implements VPNSupport {
         }
 		
 	}
-	
-	@Override
-	public void deleteVPN(String providerVpnId) throws CloudException, InternalException {
+
+    @Nonnull
+    @Override
+    public VpnGateway createVpnGateway(@Nonnull VpnGatewayCreateOptions vpnGatewayCreateOptions) throws CloudException, InternalException {
+        return createVpnGateway(vpnGatewayCreateOptions.getEndpoint(), vpnGatewayCreateOptions.getName(), vpnGatewayCreateOptions.getDescription(), vpnGatewayCreateOptions.getProtocol(), vpnGatewayCreateOptions.getBgpAsn());
+    }
+
+    @Override
+	public void deleteVpn(String providerVpnId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void deleteVPNGateway(String providerVPNGatewayId) throws CloudException, InternalException {
+	public void deleteVpnGateway(String providerVPNGatewayId) throws CloudException, InternalException {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER: " + AzureVPNSupport.class.getName() + ".deleteVPNGateway(" + providerVPNGatewayId+")");
         }
@@ -263,7 +269,7 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public void detachFromVLAN(String providerVpnId, String providerVlanId) throws CloudException, InternalException {
+	public void detachFromVlan(String providerVpnId, String providerVlanId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 
 	}
@@ -277,7 +283,7 @@ public class AzureVPNSupport implements VPNSupport {
     private transient volatile AzureVPNCapabilities capabilities;
     @Nonnull
     @Override
-    public VPNCapabilities getCapabilities() throws CloudException, InternalException {
+    public VpnCapabilities getCapabilities() throws CloudException, InternalException {
         if( capabilities == null ) {
             capabilities = new AzureVPNCapabilities(provider);
         }
@@ -285,10 +291,10 @@ public class AzureVPNSupport implements VPNSupport {
     }
 
     @Override
-	public VPNGateway getGateway(String gatewayId) throws CloudException,InternalException {
-		ArrayList<VPNGateway> list = (ArrayList<VPNGateway>) listGateways();
+	public VpnGateway getGateway(String gatewayId) throws CloudException,InternalException {
+		ArrayList<VpnGateway> list = (ArrayList<VpnGateway>) listGateways();
 		if(list != null){ 
-			for(VPNGateway gateway: list){
+			for(VpnGateway gateway: list){
 				if(gateway.getProviderVpnGatewayId().equals(gatewayId)){
 					return gateway;
 				}			
@@ -298,10 +304,10 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public VPN getVPN(String providerVpnId) throws CloudException,InternalException {
-		ArrayList<VPN> list = (ArrayList<VPN>) listVPNs();
+	public Vpn getVpn(String providerVpnId) throws CloudException,InternalException {
+		ArrayList<Vpn> list = (ArrayList<Vpn>) listVpns();
 		if(list != null){ 
-			for(VPN vpn: list){
+			for(Vpn vpn: list){
 				if(vpn.getProviderVpnId().equals(providerVpnId)){
 					return vpn;
 				}			
@@ -311,13 +317,13 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public Requirement getVPNDataCenterConstraint() throws CloudException,InternalException {
+	public Requirement getVpnDataCenterConstraint() throws CloudException,InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Iterable<VPNConnection> listGatewayConnections(String toGatewayId)throws CloudException, InternalException {
+	public Iterable<VpnConnection> listGatewayConnections(String toGatewayId)throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -329,13 +335,13 @@ public class AzureVPNSupport implements VPNSupport {
     }
 
     @Override
-	public Iterable<VPNGateway> listGateways() throws CloudException,InternalException {
-	    ArrayList<VPNGateway> gateways = new ArrayList<VPNGateway>();
+	public Iterable<VpnGateway> listGateways() throws CloudException,InternalException {
+	    ArrayList<VpnGateway> gateways = new ArrayList<VpnGateway>();
 
-		ArrayList<VPN> list = (ArrayList<VPN>) listVPNs();
+		ArrayList<Vpn> list = (ArrayList<Vpn>) listVpns();
 		if(list != null){ 
-			for(VPN vpn: list){
-				 ArrayList<VPNGateway> items = (ArrayList<VPNGateway>) listGateways(vpn.getProviderVpnId());
+			for(Vpn vpn: list){
+				 ArrayList<VpnGateway> items = (ArrayList<VpnGateway>) listGateways(vpn.getProviderVpnId());
 				 if(items != null){
 					 gateways.addAll(items);
 				 }
@@ -344,7 +350,7 @@ public class AzureVPNSupport implements VPNSupport {
 		return gateways;
 	}
 	
-	private Iterable<VPNGateway> listGateways(String vpnId) throws CloudException,InternalException {
+	private Iterable<VpnGateway> listGateways(String vpnId) throws CloudException,InternalException {
 		// TODO Auto-generated method stub
         ProviderContext ctx = provider.getContext();
 
@@ -356,11 +362,11 @@ public class AzureVPNSupport implements VPNSupport {
         Document doc = method.getAsXML(ctx.getAccountNumber(), resourceDir);
                 
         NodeList entries = doc.getElementsByTagName("Gateway");
-        ArrayList<VPNGateway> list = new ArrayList<VPNGateway>();
+        ArrayList<VpnGateway> list = new ArrayList<VpnGateway>();
 
         for( int i=0; i<entries.getLength(); i++ ) {
             Node entry = entries.item(i);
-            VPNGateway gateway= toVPNGateway(ctx, entry,vpnId );
+            VpnGateway gateway= toVPNGateway(ctx, entry,vpnId );
             
             if( gateway != null ) {
             	list.add(gateway);
@@ -370,13 +376,13 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public Iterable<VPNGateway> listGatewaysWithBgpAsn(String bgpAsn) throws CloudException, InternalException {
+	public Iterable<VpnGateway> listGatewaysWithBgpAsn(String bgpAsn) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Iterable<VPNConnection> listVPNConnections(String toVpnId)
+	public Iterable<VpnConnection> listVpnConnections(String toVpnId)
 			throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
@@ -384,12 +390,13 @@ public class AzureVPNSupport implements VPNSupport {
 
     @Nonnull
     @Override
-    public Iterable<ResourceStatus> listVPNStatus() throws CloudException, InternalException {
+    public Iterable<ResourceStatus> listVpnStatus() throws CloudException, InternalException {
         return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
+    @Nonnull
     @Override
-	public Iterable<VPN> listVPNs() throws CloudException, InternalException {
+	public Iterable<Vpn> listVpns() throws CloudException, InternalException {
 
         ProviderContext ctx = provider.getContext();
 
@@ -401,11 +408,11 @@ public class AzureVPNSupport implements VPNSupport {
         Document doc = method.getAsXML(ctx.getAccountNumber(), NETWORKING_SERVICES+"/virtualnetwork");
                 
         NodeList entries = doc.getElementsByTagName("VirtualNetworkSite");
-        ArrayList<VPN> list = new ArrayList<VPN>();
+        ArrayList<Vpn> list = new ArrayList<Vpn>();
 
         for( int i=0; i<entries.getLength(); i++ ) {
             Node entry = entries.item(i);
-            VPN vpn = toVPN(ctx, entry);
+            Vpn vpn = toVPN(ctx, entry);
             if( vpn != null ) {
             	list.add(vpn);
             }
@@ -414,7 +421,7 @@ public class AzureVPNSupport implements VPNSupport {
 	}
 
 	@Override
-	public Iterable<VPNProtocol> listSupportedVPNProtocols()throws CloudException, InternalException {
+	public Iterable<VpnProtocol> listSupportedVpnProtocols()throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -424,12 +431,12 @@ public class AzureVPNSupport implements VPNSupport {
 		return true;
 	}
 	
-    private @Nullable VPN toVPN(@Nonnull ProviderContext ctx, @Nullable Node entry) throws CloudException, InternalException {
+    private @Nullable Vpn toVPN(@Nonnull ProviderContext ctx, @Nullable Node entry) throws CloudException, InternalException {
         if( entry == null ) {
             return null;
         }
-        VPN vpn= new VPN();
-        vpn.setCurrentState(VPNState.AVAILABLE);
+        Vpn vpn= new Vpn();
+        vpn.setCurrentState(VpnState.AVAILABLE);
 
         HashMap<String,String> tags = new HashMap<String, String>();
       
@@ -454,7 +461,7 @@ public class AzureVPNSupport implements VPNSupport {
             	String status = attribute.getFirstChild().getNodeValue().trim();
             	
             	if("Created".equalsIgnoreCase(status)){
-            		vpn.setCurrentState(VPNState.AVAILABLE);
+            		vpn.setCurrentState(VpnState.AVAILABLE);
             	}        
             }            
             else if( nodeName.equalsIgnoreCase("AffinityGroup") && attribute.hasChildNodes() ) {
@@ -499,13 +506,13 @@ public class AzureVPNSupport implements VPNSupport {
         return vpn;
     }
     
-    private @Nullable VPNGateway toVPNGateway(@Nonnull ProviderContext ctx, @Nullable Node entry, String vpnId) throws CloudException, InternalException {
+    private @Nullable VpnGateway toVPNGateway(@Nonnull ProviderContext ctx, @Nullable Node entry, String vpnId) throws CloudException, InternalException {
         if( entry == null ) {
             return null;
-        }      
-        VPNGateway gateway= new VPNGateway();       
+        }
+        VpnGateway gateway= new VpnGateway();
      
-        gateway.setCurrentState(VPNGatewayState.PENDING);
+        gateway.setCurrentState(VpnGatewayState.PENDING);
         HashMap<String,String> tags = new HashMap<String, String>();
         tags.put(VPN_ID_KEY, vpnId);
         NodeList attributes = entry.getChildNodes();
@@ -519,13 +526,13 @@ public class AzureVPNSupport implements VPNSupport {
             	String status = attribute.getFirstChild().getNodeValue().trim();
             	
             	if("Provisioning".equalsIgnoreCase(status) || "Provisioned".equalsIgnoreCase(status)){
-            		gateway.setCurrentState(VPNGatewayState.AVAILABLE);
+            		gateway.setCurrentState(VpnGatewayState.AVAILABLE);
             	}
             	else if("Deprovisioning".equalsIgnoreCase(status)){
-            		gateway.setCurrentState(VPNGatewayState.DELETING);
+            		gateway.setCurrentState(VpnGatewayState.DELETING);
             	}
             	else if("NotProvisioned".equalsIgnoreCase(status)){
-            		gateway.setCurrentState(VPNGatewayState.DELETED);
+            		gateway.setCurrentState(VpnGatewayState.DELETED);
             	}
             }           
             else if( nodeName.equalsIgnoreCase("VIPAddress") && attribute.hasChildNodes() ) {
