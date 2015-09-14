@@ -1,5 +1,6 @@
 package org.dasein.cloud.azure.tests;
 
+import junit.framework.Assert;
 import org.apache.commons.collections.Closure;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.Predicate;
@@ -11,9 +12,7 @@ import org.dasein.cloud.util.requester.streamprocessors.XmlStreamToObjectProcess
 
 import java.util.Arrays;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
  * Created by vmunthiu on 9/9/2015.
@@ -86,17 +85,14 @@ public class HttpMethodAsserts {
 
     private static void assertHttpMethod(HttpUriRequest actualHttpRequest, String expectedHttpMethod, String expectedUrl, Header[] expectedHeaders, Object expectedEntity) {
         assertHttpMethod(actualHttpRequest, expectedHttpMethod, expectedUrl, expectedHeaders);
-
-        if(actualHttpRequest instanceof HttpEntityEnclosingRequestBase == false) {
-            assertTrue("Incorrect httpRequest", false);
-        }
+        assertTrue("Incorrect httpRequest found in the call", actualHttpRequest instanceof HttpEntityEnclosingRequestBase);
 
         try {
             Object actualEntity = new XmlStreamToObjectProcessor().read(((HttpEntityEnclosingRequestBase)actualHttpRequest).getEntity().getContent(), expectedEntity.getClass());
             boolean areEntitiesEquals = EqualsBuilder.reflectionEquals(expectedEntity, actualEntity);
             assertTrue("Incorrect value(s) found in the XML body of the request", areEntitiesEquals);
         } catch (Exception e) {
-            assertTrue("Incorrect XML body found in the request", false);
+            Assert.fail("Incorrect XML body found in the request");
         }
     }
 }

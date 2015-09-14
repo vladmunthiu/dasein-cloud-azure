@@ -21,37 +21,26 @@ package org.dasein.cloud.azure.tests.compute.vm;
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
-import org.apache.commons.collections.Closure;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.Predicate;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.azure.AzureConfigException;
+import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.network.model.PersistentVMRoleModel;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
-import org.dasein.cloud.util.requester.streamprocessors.XmlStreamToObjectProcessor;
 import org.junit.Test;
 
 import javax.servlet.http.HttpServletResponse;
-
+import javax.xml.bind.JAXBException;
 import java.io.IOException;
-import java.util.Arrays;
 
-import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertGet;
-import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertPut;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -59,32 +48,58 @@ import static org.junit.Assert.assertTrue;
  */
 public class AzureVmTest extends AzureVMTestsBase {
 
+    private static String ROLE_OPERATIONS_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
+    private static String ROLE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s";
 
-    @Test
-    public void startShouldPostCorrectRequest()throws CloudException, InternalException{
-        final VirtualMachine virtualMachine = new VirtualMachine();
+    private VirtualMachine getTestVirtualMachine() {
+        VirtualMachine virtualMachine = new VirtualMachine();
         virtualMachine.addTag("serviceName", SERVICE_NAME);
         virtualMachine.addTag("deploymentName", DEPLOYMENT_NAME);
         virtualMachine.addTag("roleName", ROLE_NAME);
         virtualMachine.setProviderVirtualMachineId(VM_ID);
+        return virtualMachine;
+    }
 
+    @Test
+    public void startShouldPostCorrectRequest()throws CloudException, InternalException{
         final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
-        final String expectedUrl = String.format("%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        final String expectedUrl = String.format(ROLE_OPERATIONS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(HttpUriRequest request) {
-                assertEquals("Start method shoould do a POST", "POST", request.getMethod());
-                assertEquals("Start method does not post to the correct url", expectedUrl, request.getURI().toString());
-
+                assertPost(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-02-01")}, new Operation.StartRoleOperation());
                 return mockedHttpResponse;
             }
         };
 
-        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, virtualMachine);
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, getTestVirtualMachine());
         azureVMSupport.start(VM_ID);
+    }
 
+    @Test(expected = InternalException.class)
+    public void startShouldThrowExceptionIfVmIdIsNull() throws CloudException, InternalException {
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock);
+        azureVMSupport.start(null);
+    }
 
+    @Test(expected = CloudException.class)
+    public void startShouldThrowExceptionIfNoVmForPassedInVmId() throws CloudException, InternalException {
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, null);
+        azureVMSupport.start(VM_ID);
+    }
+
+    @Test(expected = InternalException.class)
+    public void startShouldThrowExceptionIfDeserializationFails() throws CloudException, InternalException {
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) throws JAXBException {
+                throw new JAXBException("Deserialization failed");
+            }
+        };
+
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, getTestVirtualMachine());
+        azureVMSupport.start(VM_ID);
     }
 
     @Test(expected = AzureConfigException.class)
@@ -108,12 +123,6 @@ public class AzureVmTest extends AzureVMTestsBase {
 
     @Test
     public void testAlterVirtualMachineProduct() throws CloudException, InternalException {
-        final VirtualMachine virtualMachine = new VirtualMachine();
-        virtualMachine.addTag("serviceName", SERVICE_NAME);
-        virtualMachine.addTag("deploymentName", DEPLOYMENT_NAME);
-        virtualMachine.addTag("roleName", ROLE_NAME);
-        virtualMachine.setProviderVirtualMachineId(VM_ID);
-
         final PersistentVMRoleModel persistentVMRoleModel = new PersistentVMRoleModel();
         persistentVMRoleModel.setRoleName(VM_NAME);
         persistentVMRoleModel.setOsVersion("OSVERSION");
@@ -123,7 +132,7 @@ public class AzureVmTest extends AzureVMTestsBase {
         DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(persistentVMRoleModel);
         final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity , new Header[]{});
         final CloseableHttpResponse putHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
-        final String expectedUrl = String.format("%s/%s/services/hostedservices/%s/deployments/%s/roles/%s", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        final String expectedUrl = String.format(ROLE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
 
         new MockUp<CloseableHttpClient>() {
@@ -140,8 +149,8 @@ public class AzureVmTest extends AzureVMTestsBase {
             }
         };
 
-        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, virtualMachine);
-        azureVMSupport.alterVirtualMachineProduct(VM_ID, "Small");
-
+        AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, getTestVirtualMachine());
+        VirtualMachine virtualMachine = azureVMSupport.alterVirtualMachineProduct(VM_ID, "Small");
+        assertTrue("Alter method does not return the correct virtual machine", EqualsBuilder.reflectionEquals(virtualMachine, getTestVirtualMachine()));
     }
 }

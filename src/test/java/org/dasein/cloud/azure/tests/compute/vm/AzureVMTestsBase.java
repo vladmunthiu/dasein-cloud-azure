@@ -8,6 +8,7 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.log4j.Logger;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureLocation;
@@ -29,6 +30,9 @@ public class AzureVMTestsBase {
     AzureSSLSocketFactory azureSSLSocketFactoryMock;
     @Mocked
     AzureX509 azureX509Mock;
+    @Mocked
+    Logger logger;
+
 
     protected final String ACCOUNT_NO = "TESTACCOUNTNO";
     protected final String REGION = "TESTREGION";
