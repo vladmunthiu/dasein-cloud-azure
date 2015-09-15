@@ -21,7 +21,6 @@ package org.dasein.cloud.azure.tests.compute.vm;
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -32,6 +31,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.network.model.PersistentVMRoleModel;
+import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
 import org.junit.Test;
@@ -41,12 +41,12 @@ import javax.xml.bind.JAXBException;
 import java.io.IOException;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
-import static org.junit.Assert.assertTrue;
+import static org.unitils.reflectionassert.ReflectionAssert.assertReflectionEquals;
 
 /**
  * Created by Vlad_Munthiu on 6/6/2014.
  */
-public class AzureVmTest extends AzureVMTestsBase {
+public class AzureVmTest extends AzureTestsBase {
 
     private static String ROLE_OPERATIONS_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
     private static String ROLE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s";
@@ -151,6 +151,6 @@ public class AzureVmTest extends AzureVMTestsBase {
 
         AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock, getTestVirtualMachine());
         VirtualMachine virtualMachine = azureVMSupport.alterVirtualMachineProduct(VM_ID, "Small");
-        assertTrue("Alter method does not return the correct virtual machine", EqualsBuilder.reflectionEquals(virtualMachine, getTestVirtualMachine()));
+        assertReflectionEquals("Alter method does not return the correct virtual machine", virtualMachine, getTestVirtualMachine());
     }
 }
