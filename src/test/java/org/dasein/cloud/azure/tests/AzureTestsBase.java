@@ -1,4 +1,4 @@
-package org.dasein.cloud.azure.tests.compute.vm;
+package org.dasein.cloud.azure.tests;
 
 import mockit.Mock;
 import mockit.MockUp;
@@ -19,19 +19,19 @@ import org.junit.Before;
 /**
  * Created by vmunthiu on 9/7/2015.
  */
-public class AzureVMTestsBase {
+public class AzureTestsBase {
     @Mocked
-    ProviderContext providerContextMock;
+    protected ProviderContext providerContextMock;
     @Mocked
-    Azure azureMock;
+    protected Azure azureMock;
     @Mocked
-    AzureLocation azureLocationMock;
+    protected AzureLocation azureLocationMock;
     @Mocked
-    AzureSSLSocketFactory azureSSLSocketFactoryMock;
+    protected AzureSSLSocketFactory azureSSLSocketFactoryMock;
     @Mocked
-    AzureX509 azureX509Mock;
+    protected AzureX509 azureX509Mock;
     @Mocked
-    Logger logger;
+    protected Logger logger;
 
 
     protected final String ACCOUNT_NO = "TESTACCOUNTNO";

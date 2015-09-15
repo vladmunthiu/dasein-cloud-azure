@@ -16,7 +16,7 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.azure.tests.compute.network;
+package org.dasein.cloud.azure.tests.network;
 
 import mockit.*;
 import org.dasein.cloud.CloudException;

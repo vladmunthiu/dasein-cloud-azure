@@ -4,7 +4,6 @@ import junit.framework.Assert;
 import org.apache.commons.collections.Closure;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.Predicate;
-import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.http.Header;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -13,6 +12,7 @@ import org.dasein.cloud.util.requester.streamprocessors.XmlStreamToObjectProcess
 import java.util.Arrays;
 
 import static org.junit.Assert.*;
+import static org.unitils.reflectionassert.ReflectionAssert.assertReflectionEquals;
 
 /**
  * Created by vmunthiu on 9/9/2015.
@@ -89,8 +89,7 @@ public class HttpMethodAsserts {
 
         try {
             Object actualEntity = new XmlStreamToObjectProcessor().read(((HttpEntityEnclosingRequestBase)actualHttpRequest).getEntity().getContent(), expectedEntity.getClass());
-            boolean areEntitiesEquals = EqualsBuilder.reflectionEquals(expectedEntity, actualEntity);
-            assertTrue("Incorrect value(s) found in the XML body of the request", areEntitiesEquals);
+            assertReflectionEquals("Incorrect value(s) found in the XML body of the request", expectedEntity, actualEntity);
         } catch (Exception e) {
             Assert.fail("Incorrect XML body found in the request");
         }
