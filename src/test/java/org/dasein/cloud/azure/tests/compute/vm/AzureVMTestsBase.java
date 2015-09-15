@@ -20,10 +20,11 @@ import org.junit.Before;
  * Created by vmunthiu on 9/7/2015.
  */
 public class AzureVMTestsBase {
+	
     @Mocked
     ProviderContext providerContextMock;
     @Mocked
-    Azure azureMock;
+    protected Azure azureMock;
     @Mocked
     AzureLocation azureLocationMock;
     @Mocked
