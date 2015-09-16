@@ -276,7 +276,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     @Override
     public @Nullable VirtualMachineProduct getProduct(@Nonnull String productId) throws InternalException, CloudException {
         for( VirtualMachineProduct product : listProducts(null, null) ) {
-            if( product.getProviderProductId().equals(productId) ) {            	
+            if( product.getProviderProductId().equals(productId) ) {
                 return product;
             }
         }
