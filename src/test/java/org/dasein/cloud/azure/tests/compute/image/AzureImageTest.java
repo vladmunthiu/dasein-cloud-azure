@@ -3,6 +3,8 @@ package org.dasein.cloud.azure.tests.compute.image;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,6 +23,11 @@ import org.dasein.cloud.azure.AzureService;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
+import org.dasein.cloud.azure.compute.image.model.OSImageModel;
+import org.dasein.cloud.azure.compute.image.model.OSImagesModel;
+import org.dasein.cloud.azure.compute.image.model.VMImageModel;
+import org.dasein.cloud.azure.compute.image.model.VMImageModel.OSDiskConfigurationModel;
+import org.dasein.cloud.azure.compute.image.model.VMImagesModel;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.Architecture;
@@ -28,9 +35,11 @@ import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.ImageCreateOptions;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.MachineImageState;
+import org.dasein.cloud.compute.MachineImageType;
 import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -41,10 +50,16 @@ public class AzureImageTest extends AzureTestsBase {
 	
 	private final String IMAGE_ID = "TESTIMAGEID";
 	private final String IMAGE_NAME = "TESTIMAGENAME";
+	private final String GET_IMAGE_ID = "TESTGETIMAGEID";
 	
 	private final String CAPTURE_IMAGE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
 	private final String REMOVE_VM_IMAGE_URL = "%s/%s/services/vmimages/%s?comp=media";
 	private final String REMOVE_OS_IMAGE_URL = "%s/%s/services/images/%s?comp=media";
+	private final String GET_OS_IMAGE_URL = "%s/%s/services/images";
+	private final String GET_VM_IMAGE_URL = "%s/%s/services/vmimages?location=%s&category=%s";
+	
+	private final String OS_IMAGE_META_LINK = "http://azure.microsoft.com/images/os/%s";
+	private final String VM_IMAGE_META_LINK = "http://azure.microsoft.com/images/vm/%s";
 	
 	@Mocked
 	protected AzureComputeServices azureComputeServicesMock;
@@ -137,7 +152,7 @@ public class AzureImageTest extends AzureTestsBase {
 		            }
 		        };
 			}
-		}
+		} 
 	}
 	
 	@Test
@@ -295,5 +310,132 @@ public class AzureImageTest extends AzureTestsBase {
 	public void removeImageShareShouldThrowException() throws CloudException, InternalException {
 		new AzureOSImage(azureMock).removeImageShare(null, null);
 	}
+	
+	@Test
+	public void getOsImageShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<OSImagesModel>(getPrivatePublicOSImagesModel()),
+				new Header[]{});
+		
+		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<VMImagesModel>(new VMImagesModel()),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 2)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+            	if (inv.getInvocationCount() == 1) {
+            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
+            		return osImagesResponseMock; 
+            	} else if (inv.getInvocationCount() == 2) {
+            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, REGION, ""));
+            		return vmImagesResponseMock;
+            	} else {
+            		throw new RuntimeException("Invalid invocation count!");
+            	}
+            }
+        };
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		MachineImage resultImage = support.getImage(GET_IMAGE_ID);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, GET_IMAGE_ID, Platform.UNIX, false, true);
+		assertEquals("get os image with unexpected field values", expectedImage, resultImage);
+	}
+	
+	@Test
+	public void getVmImageShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<OSImagesModel>(new OSImagesModel()),
+				new Header[]{});
+		
+		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<VMImagesModel>(getPrivatePublicVmImagesModel()),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 2)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+            	if (inv.getInvocationCount() == 1) {
+            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
+            		return osImagesResponseMock; 
+            	} else if (inv.getInvocationCount() == 2) {
+            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, REGION, ""));
+            		return vmImagesResponseMock;
+            	} else {
+            		throw new RuntimeException("Invalid invocation count!");
+            	}
+            }
+        };
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		MachineImage resultImage = support.getImage(GET_IMAGE_ID);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, GET_IMAGE_ID, Platform.UNIX, false, false);
+		assertEquals("get vm image with unexpected field values", expectedImage, resultImage);
+	}
+	
+	private OSImagesModel getPrivatePublicOSImagesModel() {
+		OSImageModel image = new OSImageModel();
+		image.setLocation(REGION);
+		image.setCategory("user");
+		image.setName(GET_IMAGE_ID);
+		image.setLabel(image.getName());
+		image.setDescription(image.getName());
+		image.setDescription(image.getName());
+		image.setMediaLink(String.format(OS_IMAGE_META_LINK, image.getName()));
+		image.setOs("rhel");
+		OSImagesModel model = new OSImagesModel();
+		model.setImages(Arrays.asList(image));
+		return model;
+	}
+	
+	private VMImagesModel getPrivatePublicVmImagesModel() {
+		VMImageModel image = new VMImageModel();
+		image.setLocation(REGION);
+		image.setCategory("user");
+		image.setName(GET_IMAGE_ID);
+		image.setName(GET_IMAGE_ID);
+		image.setLabel(image.getName());
+		image.setDescription(image.getName());
+		image.setDescription(image.getName());
+		OSDiskConfigurationModel configModel = new OSDiskConfigurationModel();
+		configModel.setMediaLink(String.format(VM_IMAGE_META_LINK, image.getName()));
+		configModel.setOs("rhel");
+		configModel.setOsState("UP");
+		image.setOsDiskConfiguration(configModel);
+		VMImagesModel model = new VMImagesModel();
+		model.setVmImages(Arrays.asList(image));
+		return model;
+	}
+	
+	private AzureMachineImage getExpectedMachineImage(String owner, String region, String imageId, Platform platform, 
+			boolean isPublic, boolean osMachineImage) {
+		AzureMachineImage expectedImage = new AzureMachineImage();
+		expectedImage.setCurrentState(MachineImageState.ACTIVE);
+		expectedImage.setArchitecture(Architecture.I64);
+		expectedImage.setPlatform(Platform.RHEL);
+		expectedImage.setProviderOwnerId(owner);
+		expectedImage.setProviderRegionId(region);
+		expectedImage.setProviderMachineImageId(imageId);
+		expectedImage.setName(imageId);
+		expectedImage.setDescription(imageId);
+		if (osMachineImage) {
+			expectedImage.setMediaLink(String.format(OS_IMAGE_META_LINK, IMAGE_ID));
+		} else {
+			expectedImage.setMediaLink(String.format(VM_IMAGE_META_LINK, IMAGE_ID));
+		}
+		expectedImage.setTags(new HashMap<String, String>());
+		expectedImage.setType(MachineImageType.VOLUME);
+		expectedImage.setImageClass(ImageClass.MACHINE);
+		expectedImage.setSoftware("");
+		expectedImage.setTag("public", Boolean.toString(isPublic));
+		return expectedImage;
+	}
+	
 	
 }
