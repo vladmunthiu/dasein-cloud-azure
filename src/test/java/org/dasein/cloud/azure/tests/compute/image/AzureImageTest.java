@@ -32,7 +32,6 @@ import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VmState;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -61,15 +60,13 @@ public class AzureImageTest extends AzureTestsBase {
 	public void initExpectations() throws InternalException, CloudException {
         
 		String methodName = name.getMethodName();
-		
+
         if (methodName.startsWith("capture")) {
-    		new NonStrictExpectations() { 
+    		new NonStrictExpectations() {
     			{ azureMock.getComputeServices(); result = azureComputeServicesMock; }
-    			{ azureMock.hold(); }
     			{ azureComputeServicesMock.getVirtualMachineSupport(); result = azureVirtualMachineSupportMock; }
             };
-            
-            final AzureOSImage anyInstance = new AzureOSImage(azureMock);
+
 	        new NonStrictExpectations() {
 	        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
 	        	{ virtualMachineMock.getProviderVirtualMachineId(); result = "TESTVMID"; }
@@ -79,55 +76,12 @@ public class AzureImageTest extends AzureTestsBase {
 	        	{ virtualMachineMock.getTag("deploymentName"); result = DEPLOYMENT_NAME; }
 	        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
 	        };
-	        if (methodName.endsWith("RetrieveImageTimeout")) {
-	        	new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = null; }
-		        };
-	        } else {
-		        new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, 
-		        			ImageClass.MACHINE, MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL); }
-		        };
-	        }
 	        if (methodName.endsWith("TerminateServiceFailed")) {
-	        	new Expectations() {
+	        	new NonStrictExpectations() {
 	    			{	azureVirtualMachineSupportMock.terminateService(anyString, anyString);
 	    				result = new CloudException("Terminate service failed!"); }
 	    		};
 	        }
-        } else if (methodName.startsWith("remove")) {
-        	
-        	final AzureOSImage anyInstance = new AzureOSImage(azureMock);
-    		if (methodName.endsWith("WithCorrectRequest")) {
-    			final AzureMachineImage azureMachineImage = new AzureMachineImage();
-        		azureMachineImage.setAzureImageType("osimage");
-        		azureMachineImage.setProviderMachineImageId(IMAGE_ID);
-	        	if (methodName.contains("OS")) {
-	        		azureMachineImage.setAzureImageType("osimage");
-	        	} else if (methodName.contains("VM")) {
-	        		azureMachineImage.setAzureImageType("vmimage");
-	        	}
-	        	new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = azureMachineImage; }
-		        };
-    		} else {
-    			new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = null; }
-		        };
-    		}
-        } else if (methodName.startsWith("isImageSharedWithPublic")) {
-        	final AzureOSImage anyInstance = new AzureOSImage(azureMock);
-        	if (methodName.endsWith("True")) {
-        		new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = MachineImage.getInstance("--public--", REGION, IMAGE_ID, 
-		        			ImageClass.MACHINE, MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL); }
-		        };
-        	} else {
-        		new NonStrictExpectations(AzureOSImage.class) {
-		        	{ anyInstance.getImage(anyString); result = MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, 
-		        			ImageClass.MACHINE, MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL); }
-		        };
-        	}
         } else if (methodName.startsWith("isSubscribed")) {
         		new NonStrictExpectations() {
 	    			{azureLocationMock.isSubscribed(AzureService.COMPUTE); result = true; }
@@ -148,19 +102,19 @@ public class AzureImageTest extends AzureTestsBase {
 	
 	@Before
 	public void initMockUps() {
-		
+
 		final String methodName = name.getMethodName();
-		
+
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK), 
-				null, 
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				null,
 				new Header[]{});
-		
+
 		if (methodName.startsWith("capture")) {
 			new MockUp<CloseableHttpClient>() {
 	            @Mock(invocations = 1)
 	            public CloseableHttpResponse execute(HttpUriRequest request) {
-	        		assertPost(request, 
+	        		assertPost(request,
 	        				String.format(CAPTURE_IMAGE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
 	            	return responseMock;
 	            }
@@ -183,17 +137,15 @@ public class AzureImageTest extends AzureTestsBase {
 		            }
 		        };
 			}
-		} 
+		}
 	}
 	
-	/*
-	 * capture image
-	 */
 	@Test
 	public void captureWithOptionShouldPostWithCorrectRequest() throws CloudException, InternalException {
         
-        final AzureOSImage support = new AzureOSImage(azureMock);
-     
+        final AzureImageSupport support = new AzureImageSupport(azureMock, 
+        		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
+        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
         ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
         MachineImage image = support.captureImage(options);
         
@@ -204,7 +156,9 @@ public class AzureImageTest extends AzureTestsBase {
 	@Test
 	public void captureWithTaskShouldPostWithCorrectRequest() throws CloudException, InternalException, InterruptedException {
 		
-		final AzureOSImage support = new AzureOSImage(azureMock);
+        final AzureImageSupport support = new AzureImageSupport(azureMock, 
+        		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID,ImageClass.MACHINE, 
+        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
 		final AtomicBoolean taskRun = new AtomicBoolean(false);
 		
 		AsynchronousTask<MachineImage> task = new AsynchronousTask<MachineImage>() {
@@ -228,7 +182,7 @@ public class AzureImageTest extends AzureTestsBase {
 	@Test(expected = CloudException.class)
 	public void captureShouldThrowExceptionIfRetrieveImageTimeout() throws CloudException, InternalException {
 		
-		AzureOSImage support = new AzureOSImage(azureMock);
+		final AzureImageSupport support = new AzureImageSupport(azureMock);
 		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
 		support.captureImage(options);
 	}
@@ -236,33 +190,34 @@ public class AzureImageTest extends AzureTestsBase {
 	@Test(expected = CloudException.class)
 	public void captureShouldThrowExceptionIfTerminateServiceFailed() throws InternalException, CloudException {
 		
-		AzureOSImage support = new AzureOSImage(azureMock);
+		final AzureImageSupport support = new AzureImageSupport(azureMock, 
+        		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
+        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
 		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
 		support.captureImage(options);
 	}
 	
-	
-	/*
-	 * remove image
-	 */
 	@Test
 	public void removeVMImageShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
-		new AzureOSImage(azureMock).remove(IMAGE_ID);
+		final AzureMachineImage azureMachineImage = new AzureMachineImage();
+		azureMachineImage.setProviderMachineImageId(IMAGE_ID);
+    	azureMachineImage.setAzureImageType("vmimage");
+		new AzureImageSupport(azureMock, azureMachineImage).remove(IMAGE_ID);
 	}
 	
 	@Test
 	public void removeOSImageShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
-		new AzureOSImage(azureMock).remove(IMAGE_ID);
+		final AzureMachineImage azureMachineImage = new AzureMachineImage();
+		azureMachineImage.setProviderMachineImageId(IMAGE_ID);
+    	azureMachineImage.setAzureImageType("osimage");
+		new AzureImageSupport(azureMock, azureMachineImage).remove(IMAGE_ID);
 	}
 	
 	@Test(expected = CloudException.class)
 	public void removeShouldThrowExceptionIfRetrieveImageFailed() throws CloudException, InternalException {
-		new AzureOSImage(azureMock).remove(IMAGE_ID);
+		new AzureImageSupport(azureMock).remove(IMAGE_ID);
 	}
 
-	/*
-	 * others
-	 */
 	@Test
 	public void getProviderTermByLocaleShouldReturnCorrectResult() throws CloudException, InternalException {
 		assertEquals("Provider Term is invalid", "OS image", 
@@ -294,14 +249,20 @@ public class AzureImageTest extends AzureTestsBase {
 	
 	@Test
 	public void isImageSharedWithPublicShouldReturnTrue() throws CloudException, InternalException {
+		AzureImageSupport support = new AzureImageSupport(azureMock, 
+				MachineImage.getInstance("--public--", REGION, IMAGE_ID, ImageClass.MACHINE, 
+						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
 		assertTrue("image share with public match provider owner --public-- but returns false", 
-				new AzureOSImage(azureMock).isImageSharedWithPublic(IMAGE_ID));
+				support.isImageSharedWithPublic(IMAGE_ID));
 	}
 	
 	@Test
 	public void isImageSharedWithPublicShouldReturnFalse() throws CloudException, InternalException {
+		AzureImageSupport support = new AzureImageSupport(azureMock, 
+				MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
+						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
 		assertFalse("image share with public match a specific owner id but return true", 
-				new AzureOSImage(azureMock).isImageSharedWithPublic(IMAGE_ID));
+				support.isImageSharedWithPublic(IMAGE_ID));
 	}
 	
 	@Test
