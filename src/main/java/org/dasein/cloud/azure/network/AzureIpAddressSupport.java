@@ -170,7 +170,13 @@ public class AzureIpAddressSupport extends AbstractIpAddressSupport<Azure>{
     @Nonnull
     @Override
     public String getProviderTermForIpAddress(@Nonnull Locale locale) {
-        return "";
+        try {
+            return getCapabilities().getProviderTermForIpAddress(locale);
+        } catch (CloudException e) {
+            throw new RuntimeException("Unexpected problem with capabilities", e);
+        } catch (InternalException e) {
+            throw new RuntimeException("Unexpected problem with capabilities", e);
+        }
     }
 
     /**

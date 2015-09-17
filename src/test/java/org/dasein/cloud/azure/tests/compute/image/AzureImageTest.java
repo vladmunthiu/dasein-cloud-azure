@@ -2,10 +2,7 @@ package org.dasein.cloud.azure.tests.compute.image;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
-
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.http.Header;
@@ -18,12 +15,8 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
-import org.dasein.cloud.azure.compute.image.model.OSImageModel;
-import org.dasein.cloud.azure.compute.image.model.OSImagesModel;
-import org.dasein.cloud.azure.compute.image.model.VMImageModel;
-import org.dasein.cloud.azure.compute.image.model.VMImagesModel;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
-import org.dasein.cloud.azure.tests.compute.vm.AzureVMTestsBase;
+import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.ImageCreateOptions;
@@ -39,7 +32,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import mockit.*;
 
-public class AzureImageTest extends AzureVMTestsBase {
+public class AzureImageTest extends AzureTestsBase {
 	
 	protected final String VM_ID = "TESTVMID";
 	protected final String IMAGE_ID = "TESTIMAGEID";
@@ -66,8 +59,15 @@ public class AzureImageTest extends AzureVMTestsBase {
         if (methodName.startsWith("capture")) {
     		new NonStrictExpectations() { 
     			{ azureMock.getComputeServices(); result = azureComputeServicesMock; }
+    			{ azureMock.hold(); }
     			{ azureComputeServicesMock.getVirtualMachineSupport(); result = azureVirtualMachineSupportMock; }
             };
+            
+            final AzureOSImage anyInstance = new AzureOSImage(azureMock);
+	        new NonStrictExpectations(AzureOSImage.class) {
+	        	{ anyInstance.getImage(anyString); result = MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, 
+	        			ImageClass.MACHINE, MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL); }
+	        };
 	        new NonStrictExpectations() {
 	        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
 	        	{ virtualMachineMock.getProviderVirtualMachineId(); result = VM_ID; }
@@ -78,13 +78,11 @@ public class AzureImageTest extends AzureVMTestsBase {
 	        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
 	        };
 	        if (!methodName.endsWith("retrieveimagetimeout")) {
-		        final AzureOSImage anyInstance = new AzureOSImage(azureMock);
 		        new NonStrictExpectations(AzureOSImage.class) {
 		        	{ anyInstance.getImage(anyString); result = MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, 
 		        			ImageClass.MACHINE, MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL); }
 		        };
 	        } else {
-	        	final AzureOSImage anyInstance = new AzureOSImage(azureMock);
 		        new NonStrictExpectations(AzureOSImage.class) {
 		        	{ anyInstance.getImage(anyString); result = null; }
 		        };
@@ -192,7 +190,6 @@ public class AzureImageTest extends AzureVMTestsBase {
         
         assertNotNull("Capture image returns null image", image);
         assertEquals("Capture image returns invalid image id", IMAGE_ID, image.getProviderMachineImageId());
-        //TODO: compare all fields
 	}
 	
 	@Ignore //TODO: getProvider().hold() always failed, mock?
