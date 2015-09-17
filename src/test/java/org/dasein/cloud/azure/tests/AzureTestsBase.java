@@ -9,6 +9,9 @@ import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.log4j.Logger;
+import org.dasein.cloud.Cloud;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureLocation;
@@ -20,40 +23,34 @@ import org.junit.Before;
  * Created by vmunthiu on 9/7/2015.
  */
 public class AzureTestsBase {
-    @Mocked
-    protected ProviderContext providerContextMock;
-    @Mocked
-    protected Azure azureMock;
-    @Mocked
-    protected AzureLocation azureLocationMock;
-    @Mocked
-    protected AzureSSLSocketFactory azureSSLSocketFactoryMock;
-    @Mocked
-    protected AzureX509 azureX509Mock;
-    @Mocked
-    protected Logger logger;
+    @Mocked protected ProviderContext providerContextMock;
+    @Mocked protected Azure azureMock;
+    @Mocked protected AzureSSLSocketFactory azureSSLSocketFactoryMock;
+    @Mocked protected AzureX509 azureX509Mock;
+    @Mocked protected Logger logger;
+    @Mocked protected Cloud cloudMock;
 
-
+    //Global
+    protected final String ENDPOINT = "TESTENDPOINT";
     protected final String ACCOUNT_NO = "TESTACCOUNTNO";
     protected final String REGION = "TESTREGION";
+
+    //VM
     protected final String SERVICE_NAME = "TESTSERVICENAME";
     protected final String DEPLOYMENT_NAME = "TESTDEPLOYMENTNAME";
     protected final String ROLE_NAME = "TESTROLENAME";
-    protected final String ENDPOINT = "TESTENDPOINT";
     protected final String VM_NAME = "TESTVMNAME";
     protected final String VM_ID = String.format("%s:%s:%s", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
     @Before
-    public void setUp() {
+    public void setUp() throws CloudException, InternalException {
         new NonStrictExpectations() {
             { azureMock.getContext(); result = providerContextMock; }
-            { azureMock.getDataCenterServices(); result = azureLocationMock; }
-        };
-
-        new NonStrictExpectations() {
             { providerContextMock.getAccountNumber(); result = ACCOUNT_NO; }
             { providerContextMock.getRegionId(); result = REGION; }
             { providerContextMock.getEndpoint(); result = ENDPOINT;}
+            { providerContextMock.getCloud(); result = cloudMock; }
+            { cloudMock.getEndpoint(); result = ENDPOINT; }
         };
     }
 
