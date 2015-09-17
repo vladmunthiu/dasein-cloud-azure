@@ -1,11 +1,9 @@
 package org.dasein.cloud.azure.tests.compute.vm;
 
-import mockit.MockUp;
 import org.apache.commons.collections.Closure;
 import org.apache.commons.collections.CollectionUtils;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
-import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineProduct;
 import org.dasein.cloud.compute.VirtualMachineProductFilterOptions;
@@ -13,7 +11,6 @@ import org.dasein.cloud.compute.VirtualMachineProductFilterOptions;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * Created by vmunthiu on 9/7/2015.
@@ -27,11 +24,11 @@ public class AzureVMSupport extends AzureVM {
 
     public AzureVMSupport(Azure provider, VirtualMachine virtualMachine){
         super(provider);
-        this.virtualMachine = virtualMachine;
+        this.setVirtualMachine(virtualMachine);
     }
 
     public VirtualMachine getVirtualMachine(String vmId) {
-        return virtualMachine;
+        return getVirtualMachine();
     }
 
     @Override
@@ -48,4 +45,11 @@ public class AzureVMSupport extends AzureVM {
         return products;
     }
 
+    public VirtualMachine getVirtualMachine() {
+        return virtualMachine;
+    }
+
+    public void setVirtualMachine(VirtualMachine virtualMachine) {
+        this.virtualMachine = virtualMachine;
+    }
 }
