@@ -24,6 +24,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureMethod;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.annotation.Nonnull;
@@ -50,6 +51,7 @@ public class AzureMethodTests
     @Mocked ProviderContext mockedProviderContext;
 
     @Test
+    @Ignore("AzureMethod tests will be removed as we're checking the requests in the other tests")
     public void genericGetReturnCorrectObject(@Injectable final Azure mockedCloudProvider) throws CloudException, InternalException, UnsupportedEncodingException, URISyntaxException, JAXBException
     {
         final DummyTest expectedDummy = new DummyTest("firstValue", "secondValue");
@@ -96,6 +98,7 @@ public class AzureMethodTests
     }
 
     @Test(expected = CloudException.class)
+    @Ignore("AzureMethod tests will be removed as we're checking the requests in the other tests")
     public void genericGetThrowsCloudExceptionWhenInputStreamNull(@Injectable final Azure mockedCloudProvider) throws CloudException, URISyntaxException, InternalException {
         final String dummyXml = "<myroot><node>value</node></myroot>";
 
