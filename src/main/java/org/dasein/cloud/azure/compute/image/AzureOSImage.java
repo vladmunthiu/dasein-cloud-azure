@@ -118,7 +118,7 @@ public class AzureOSImage extends AbstractImageSupport<Azure> {
                 throw new CloudException("Virtual machine not found: " + options.getVirtualMachineId());
             }
 
-            if( !provider.getComputeServices().getImageSupport().getCapabilities().canImage(vm.getCurrentState()))
+            if( !getCapabilities().canImage(vm.getCurrentState()))
                 throw new InternalException("Virtual machine must be shut down before capture an image from it.");
 
             try {
