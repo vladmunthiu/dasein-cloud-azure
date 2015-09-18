@@ -269,7 +269,7 @@ public class AzureOSImage extends AbstractImageSupport<Azure> {
         final Iterable<MachineImage> allImages = getAllImages(false, true, false);
         for( MachineImage image : allImages)
         {
-            if("user".equalsIgnoreCase(image.getProviderOwnerId().toLowerCase()) && ctx.getRegionId().equalsIgnoreCase(image.getProviderRegionId().toLowerCase()))
+            if(ctx.getAccountNumber().equalsIgnoreCase(image.getProviderOwnerId().toLowerCase()) && ctx.getRegionId().equalsIgnoreCase(image.getProviderRegionId().toLowerCase()))
             {
                 list.add(new ResourceStatus(image.getProviderMachineImageId(), MachineImageState.ACTIVE));
             }
