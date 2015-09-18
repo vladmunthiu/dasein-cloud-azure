@@ -100,21 +100,6 @@ public class AzureImageTest extends AzureTestsBase {
 	    				result = new CloudException("Terminate service failed!"); }
 	    		};
 	        }
-        } else if (methodName.startsWith("isSubscribed")) {
-        		new NonStrictExpectations() {
-	    			{azureLocationMock.isSubscribed(AzureService.COMPUTE); result = true; }
-	    			{azureLocationMock.isSubscribed((AzureService) any); result = false; }
-	    		};
-        } else if (methodName.startsWith("isSubscribed")) {
-        	if (methodName.endsWith("True")) {
-        		new NonStrictExpectations() {
-        			{azureLocationMock.isSubscribed((AzureService) any); result = true; }
-        		};
-        	} else {
-        		new NonStrictExpectations() {
-        			{azureLocationMock.isSubscribed((AzureService) any); result = false; }
-        		};
-        	}
         }
 	}
 	
@@ -294,16 +279,6 @@ public class AzureImageTest extends AzureTestsBase {
 						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
 		assertFalse("image share with public match a specific owner id but return true", 
 				support.isImageSharedWithPublic(IMAGE_ID));
-	}
-	
-	@Test
-	public void isSubscribedShouldReturnTrue() throws CloudException, InternalException {
-		assertTrue("subscribe compute returns false", new AzureOSImage(azureMock).isSubscribed());
-	}
-	
-	@Test
-	public void isSubscribedShouldReturnFalse() throws CloudException, InternalException {
-		assertTrue("subscribe compute returns false", new AzureOSImage(azureMock).isSubscribed());
 	}
 	
 	@Test
