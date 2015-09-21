@@ -335,7 +335,7 @@ public class AzureImageTest extends AzureTestsBase {
 	}
 	
 	@Test
-	public void getOSImageShouldReturnNullIfNotFound() throws CloudException, InternalException {
+	public void getOsImageShouldReturnNullIfNotFound() throws CloudException, InternalException {
 		
 		OSImagesModel model = new OSImagesModel();
 		model.setImages(Arrays.asList(createOSImageModel(REGION, "user", IMAGE_ID, "rhel")));
@@ -371,6 +371,11 @@ public class AzureImageTest extends AzureTestsBase {
 		AzureOSImage support = new AzureOSImage(azureMock);
 		MachineImage resultImage = support.getImage(IMAGE_ID + "_NOTFOUND");
 		assertNull("get image by id " + IMAGE_ID + "_NOTFOUND returns invalid result", resultImage);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void getImageShouldThrowExceptionIfIdIsNull() throws CloudException, InternalException {
+		new AzureOSImage(azureMock).getImage(null);
 	}
 	
 	@Test
