@@ -34,7 +34,6 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.azure.IpUtils;
 import org.dasein.cloud.azure.network.AzureIpAddressSupport;
 import org.dasein.cloud.azure.network.AzureRuleIdParts;
 import org.dasein.cloud.azure.network.model.PersistentVMRoleModel;
@@ -53,6 +52,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertGet;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.assertPut;
@@ -77,7 +78,7 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
 
     private AzureIpAddressSupport ipAddressSupport;
     @Before
-    public void setUp() {
+    public void setUp() throws CloudException, InternalException {
         super.setUp();
         ipAddressSupport = new AzureIpAddressSupport(azureMock);
     }
@@ -93,7 +94,8 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
                 assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null, new Header[]{});
+                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null,
+                        new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
             }
         };
 
@@ -102,6 +104,7 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
 
     @Test
     public void forwardShouldPostCorrectRequest() throws CloudException, InternalException {
+        final AtomicInteger putCount = new AtomicInteger(0);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
@@ -109,12 +112,15 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
                     DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(
                             createPersistentVMRoleModelWithoutEndpoint());
                     assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else if(request.getMethod().equals("PUT")) {
+                    putCount.incrementAndGet();
                     PersistentVMRoleModel persistentVMRoleModel = createPersistentVMRoleModelWithEndpoint();
                     assertPut(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") },
                             persistentVMRoleModel);
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else{
                     throw new IOException("Request is not mocked");
                 }
@@ -125,6 +131,7 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
         assertEquals("IpAddressSupport.forward() doesn't return correct result",
                 new AzureRuleIdParts(VM_ID, Protocol.TCP.toString(), String.valueOf(PRIVATE_PORT)).toProviderId(),
                 result);
+        assertEquals("PUT count doesn't match", 1, putCount.get());
     }
 
     @Test(expected = InternalException.class)
@@ -144,7 +151,8 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
                 assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null, new Header[]{});
+                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null,
+                        new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
             }
         };
 
@@ -159,6 +167,7 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
 
     @Test
     public void stopForwardToServerShouldPostCorrectRequest() throws CloudException, InternalException {
+        final AtomicInteger putCount = new AtomicInteger(0);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
@@ -166,14 +175,17 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
                     DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(
                             createPersistentVMRoleModelWithEndpoint());
                     assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else if(request.getMethod().equals("PUT")) {
+                    putCount.incrementAndGet();
                     PersistentVMRoleModel persistentVMRoleModel = createPersistentVMRoleModelWithoutEndpoint();
                     //set an empty list otherwise unitils will assert fail as one is null while another is empty list
                     persistentVMRoleModel.getConfigurationSets().get(0).setInputEndpoints(new ArrayList<PersistentVMRoleModel.InputEndpoint>());
                     assertPut(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") },
                             persistentVMRoleModel);
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else{
                     throw new IOException("Request is not mocked");
                 }
@@ -181,10 +193,12 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
         };
         String ruleId = new AzureRuleIdParts(VM_ID, Protocol.TCP.toString(), String.valueOf(PRIVATE_PORT)).toProviderId();
         ipAddressSupport.stopForwardToServer(ruleId, VM_ID);
+        assertEquals("PUT count doesn't match", 1, putCount.get());
     }
 
     @Test
     public void stopForwardToServerShouldPostCorrectRequestIfNoMatchEndpointFound() throws CloudException, InternalException {
+        final AtomicInteger putCount = new AtomicInteger(0);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
@@ -192,12 +206,15 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
                     DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(
                             createPersistentVMRoleModelWithEndpoint());
                     assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else if(request.getMethod().equals("PUT")) {
+                    putCount.incrementAndGet();
                     PersistentVMRoleModel persistentVMRoleModel = createPersistentVMRoleModelWithEndpoint();
                     assertPut(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") },
                             persistentVMRoleModel);
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_ACCEPTED), null,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else {
                     throw new IOException("Request is not mocked");
                 }
@@ -205,6 +222,7 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
         };
         String ruleId = new AzureRuleIdParts(VM_ID, Protocol.TCP.toString(), String.valueOf(PRIVATE_PORT + 1)).toProviderId();
         ipAddressSupport.stopForwardToServer(ruleId, VM_ID);
+        assertEquals("PUT count doesn't match", 1, putCount.get());
     }
 
     @Test(expected = InternalException.class)
@@ -218,7 +236,8 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
                 assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null, new Header[]{});
+                return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_NOT_FOUND), null,
+                        new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
             }
         };
 
@@ -234,7 +253,8 @@ public class AzureIpAddressSupportTest extends AzureTestsBase {
                     DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(
                             createPersistentVMRoleModelWithEndpoint());
                     assertGet(request, EXPECTED_URL, new Header[] { new BasicHeader("x-ms-version", "2012-03-01") });
-                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[] {});
+                    return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity,
+                            new Header[] { new BasicHeader("x-ms-request-id", UUID.randomUUID().toString()) });
                 } else {
                     throw new IOException("Request is not mocked");
                 }
