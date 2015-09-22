@@ -27,6 +27,7 @@ import org.dasein.cloud.azure.compute.image.model.VMImageModel;
 import org.dasein.cloud.azure.compute.image.model.VMImageModel.OSDiskConfigurationModel;
 import org.dasein.cloud.azure.compute.image.model.VMImagesModel;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
+import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
@@ -49,7 +50,6 @@ import mockit.*;
 public class AzureImageTest extends AzureTestsBase {
 	
 	private final String IMAGE_ID = "TESTIMAGEID";
-	private final String IMAGE_NAME = "TESTIMAGENAME";
 	
 	private final String CAPTURE_IMAGE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
 	private final String REMOVE_VM_IMAGE_URL = "%s/%s/services/vmimages/%s?comp=media";
@@ -112,11 +112,18 @@ public class AzureImageTest extends AzureTestsBase {
 				new Header[]{});
 
 		if (methodName.startsWith("capture")) {
+			
+			final Operation.CaptureRoleAsVMImageOperation captureVMImageOperation = new Operation.CaptureRoleAsVMImageOperation();
+            captureVMImageOperation.setOsState("Generalized");
+            captureVMImageOperation.setVmImageName(IMAGE_ID);
+            captureVMImageOperation.setVmImageLabel(IMAGE_ID);
+			
 			new MockUp<CloseableHttpClient>() {
 	            @Mock(invocations = 1)
 	            public CloseableHttpResponse execute(HttpUriRequest request) {
-	        		assertPost(request,
-	        				String.format(CAPTURE_IMAGE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+	        		assertPost(request, 
+	        				String.format(CAPTURE_IMAGE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME),
+	        				new Header[]{}, captureVMImageOperation);
 	            	return responseMock;
 	            }
 	        };
@@ -174,10 +181,10 @@ public class AzureImageTest extends AzureTestsBase {
         
         final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
-        ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
-        MachineImage image = support.captureImage(options);
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
         
+        ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+        MachineImage image = support.captureImage(options);
         assertNotNull("Capture image returns null image", image);
         assertEquals("Capture image returns invalid image id", IMAGE_ID, image.getProviderMachineImageId());
 	}
@@ -187,7 +194,7 @@ public class AzureImageTest extends AzureTestsBase {
 		
         final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID,ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		
 		AsynchronousTask<MachineImage> task = new AsynchronousTask<MachineImage>() {
 			@Override
@@ -199,7 +206,7 @@ public class AzureImageTest extends AzureTestsBase {
 			}
 		};
 		
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
         support.captureImageAsync(options, task);
         while (!task.isComplete()) {
         	Thread.sleep(1000L);
@@ -211,7 +218,7 @@ public class AzureImageTest extends AzureTestsBase {
 	@Test(expected = CloudException.class)
 	public void captureShouldThrowExceptionIfRetrieveImageTimeout() throws CloudException, InternalException {
 		final AzureImageSupport support = new AzureImageSupport(azureMock);
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
 		support.captureImage(options);
 	}
 	
@@ -220,8 +227,8 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
 		support.captureImage(options);
 	}
 	
@@ -279,7 +286,7 @@ public class AzureImageTest extends AzureTestsBase {
 	public void isImageSharedWithPublicShouldReturnTrue() throws CloudException, InternalException {
 		AzureImageSupport support = new AzureImageSupport(azureMock, 
 				MachineImage.getInstance("--public--", REGION, IMAGE_ID, ImageClass.MACHINE, 
-						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+						MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		assertTrue("image share with public match provider owner --public-- but returns false", 
 				support.isImageSharedWithPublic(IMAGE_ID));
 	}
@@ -288,7 +295,7 @@ public class AzureImageTest extends AzureTestsBase {
 	public void isImageSharedWithPublicShouldReturnFalse() throws CloudException, InternalException {
 		AzureImageSupport support = new AzureImageSupport(azureMock, 
 				MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+						MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		assertFalse("image share with public match a specific owner id but return true", 
 				support.isImageSharedWithPublic(IMAGE_ID));
 	}

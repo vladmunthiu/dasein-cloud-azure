@@ -3,13 +3,18 @@ package org.dasein.cloud.azure.tests.compute.disk;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
+
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Iterator;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.params.HttpParams;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
@@ -88,7 +93,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             
             if (methodName.startsWith("createVolume")) {
             	new NonStrictExpectations() {
-            		{ azureMock.getStorageEndpoint(); result = "TESTSTORAGEENDPOINT"; }
+            		{ azureMock.getStorageEndpoint(); result = ENDPOINT; }
             	};
             }
 
@@ -203,14 +208,26 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
     
 	@Test
 	public void attachShouldPostWithCorrectRequest() throws InternalException, CloudException {
+		
+		Volume volume = new Volume();
+        volume.setName(VOLUME_ID);
+        volume.setMediaLink("http://test.blob.core.windows.net/disks/" + VOLUME_ID + ".vhd");
+		
+		final DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
+        dataVirtualHardDiskModel.setHostCaching("ReadWrite");
+        dataVirtualHardDiskModel.setDiskName(volume.getName());
+        dataVirtualHardDiskModel.setMediaLink(volume.getMediaLink());
+        
 		new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(HttpUriRequest request) {
-        		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+        		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME), 
+        				new Header[]{}, dataVirtualHardDiskModel);
             	return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
             }
         };
-        new AzureVolumeSupport(azureMock, new Volume()).attach(VOLUME_ID, "TESTSERVER", "TESTDEVICE");
+        
+        new AzureVolumeSupport(azureMock, volume).attach(VOLUME_ID, "TESTSERVER", "TESTDEVICE");
 	}
 	
 	@Test(expected = InternalException.class) 
@@ -309,6 +326,9 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	@Test
 	public void createVolumeShouldPostWithCorrectRequest() throws InternalException, CloudException {
 		
+		final VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
+				.withVirtualMachineId("TESTVM");
+		
 		DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
 		dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
 		RoleModel roleModel = new RoleModel();
@@ -334,7 +354,18 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
             		return getDataDisksCountResponseMock;
             	} else if (inv.getInvocationCount() == 2) {
-            		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+            		
+            		String storageMediaLink = String.format("%s/vhds/%s.vhd", 
+            				ENDPOINT, 
+            				String.format("%s-%s-%s-%s", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())));
+            		
+            		DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
+            		dataVirtualHardDiskModel.setHostCaching("ReadWrite");
+            		dataVirtualHardDiskModel.setLun("2");
+            		dataVirtualHardDiskModel.setLogicalDiskSizeInGB(Integer.toString(options.getVolumeSize().intValue()));
+            		dataVirtualHardDiskModel.setMediaLink(storageMediaLink);
+            		
+            		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME), new Header[]{}, dataVirtualHardDiskModel);
 	            	return getDeplaymentModelResponseMock;
             	} else if (inv.getInvocationCount() == 3) {
             		assertGet(request, String.format(DATA_DISK_LUN, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, 2));
@@ -344,9 +375,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             	}
             }
         };
-        
-		VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
-				.withVirtualMachineId("TESTVM");
+		
 		String diskName = new AzureDisk(azureMock).createVolume(options);
 		assertEquals("match disk name for createVolume failed", VOLUME_ID, diskName);
 	}
@@ -417,12 +446,16 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 
 	@Test
 	public void listVolumesShouldReturnCorrectResult() throws InternalException, CloudException {
+		
 		Iterator<Volume> volumes = new AzureDisk(azureMock).listVolumes().iterator();
 		assertTrue("find volumes returns empty list", volumes.hasNext());
+		
 		Volume expectedVolume = createExpectedVolume(VOLUME_ID);
 		assertReflectionEquals("match fields failed for volume with id " + VOLUME_ID, expectedVolume, volumes.next());
+		
 		expectedVolume = createExpectedVolume(GET_VOLUME_ID);
 		assertReflectionEquals("match fields failed for volume with id " + GET_VOLUME_ID, expectedVolume, volumes.next());
+		
 		assertFalse("more than expected volumes found", volumes.hasNext());
 	}
 	
@@ -434,13 +467,17 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	
 	@Test
 	public void listVolumesByFilterShouldReturnCorrectResult() throws InternalException, CloudException {
+		
 		VolumeFilterOptions options = VolumeFilterOptions.getInstance();						//TODO, filter has no effect
 		Iterator<Volume> volumes = new AzureDisk(azureMock).listVolumes(options).iterator();
 		assertTrue("find volumes returns empty list", volumes.hasNext());
+		
 		Volume expectedVolume = createExpectedVolume(VOLUME_ID);
 		assertReflectionEquals("match fields failed for volume with id " + VOLUME_ID, expectedVolume, volumes.next());
+		
 		expectedVolume = createExpectedVolume(GET_VOLUME_ID);
 		assertReflectionEquals("match fields failed for volume with id " + GET_VOLUME_ID, expectedVolume, volumes.next());
+		
 		assertFalse("more than expected volumes found", volumes.hasNext());
 	}
 	
