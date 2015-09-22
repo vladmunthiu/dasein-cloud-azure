@@ -4,11 +4,8 @@ import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
-import java.util.Map;
-
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.http.Header;

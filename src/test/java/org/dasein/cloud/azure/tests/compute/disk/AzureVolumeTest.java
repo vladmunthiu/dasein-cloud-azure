@@ -50,11 +50,12 @@ import mockit.NonStrictExpectations;
 
 public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 
-	private final String DISK_SERVICES = "%s/%s/services/disks";
-    private final String HOSTED_SERVICES = "%s/%s/services/hostedservices";
-    private final String DEPLOYMENT_RESOURCE = "%s/%s/services/hostedservices/%s/deployments/%s";
-    private final String DATA_DISK_LUN = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks/%s";
-    private final String DATA_DISK_RESOURCE = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks";
+	private final String URL_PREFIX = ENDPOINT + "/" + ACCOUNT_NO;
+	private final String DISK_SERVICES = URL_PREFIX + "/services/disks";
+    private final String HOSTED_SERVICES = URL_PREFIX + "/services/hostedservices";
+    private final String DEPLOYMENT_RESOURCE = URL_PREFIX + "/services/hostedservices/%s/deployments/%s";
+    private final String DATA_DISK_LUN = URL_PREFIX + "/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks/%s";
+    private final String DATA_DISK_RESOURCE = URL_PREFIX + "/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks";
     
     private final String VOLUME_ID = "TEST_VOLUME";
     private final String GET_VOLUME_ID = VOLUME_ID + "_GET";
@@ -126,7 +127,8 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
         			return CalendarWrapper.MINUTE * 8L * inv.getInvocationCount();
         		}
         	};
-    	} else if (methodName.startsWith("listVolumes") || (methodName.startsWith("getVolume") && !methodName.startsWith("getVolumeProduct"))) {
+    	} else if (methodName.startsWith("listVolumes") || methodName.startsWith("listVolumeStatus") ||
+    			(methodName.startsWith("getVolume") && !methodName.startsWith("getVolumeProduct"))) {
 
     		if (!methodName.endsWith("NoVolumeFound")) {
 	    		
@@ -135,82 +137,57 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	    				createDiskModel(VOLUME_ID), 
 	    				createDiskModel(GET_VOLUME_ID)));
 	    		
-	    		final DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
-	    		dataVirtualHardDiskModel.setLun(DEVICE_ID);
-	    		
-	    		new MockUp<CloseableHttpClient>() {
-	                @Mock(invocations = 3)
-	                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-	                	if (inv.getInvocationCount() == 1) {
-	                		assertGet(request, String.format(DISK_SERVICES, ENDPOINT, ACCOUNT_NO));
-	                		return getHttpResponseMock(
-	                				getStatusLineMock(HttpServletResponse.SC_OK),
-	                				new DaseinObjectToXmlEntity<DisksModel>(disksModel),
-	                				new Header[]{});
-	                	} else if (inv.getInvocationCount() == 2) {
-	                		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
-	                		dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
-	                		return getHttpResponseMock(
-	                				getStatusLineMock(HttpServletResponse.SC_OK),
-	                				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(dataVirtualHardDiskModel),
-	                				new Header[]{});
-	                	} else if (inv.getInvocationCount() == 3) {
-	                		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
-	                		dataVirtualHardDiskModel.setDiskName(GET_VOLUME_ID);
-	                		return getHttpResponseMock(
-	                				getStatusLineMock(HttpServletResponse.SC_OK),
-	                				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(dataVirtualHardDiskModel),
-	                				new Header[]{});
-	                	} else {
-	                		throw new RuntimeException("Invalid invocation count!");
-	                	}
-	                }
-	            };
+	    		if (methodName.startsWith("listVolumeStatus")) {
+	    			new MockUp<CloseableHttpClient>() {
+		                @Mock(invocations = 1)
+		                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+		                	if (inv.getInvocationCount() == 1) {
+		                		assertGet(request, String.format(DISK_SERVICES));
+		                		return getHttpResponseMock(
+		                				getStatusLineMock(HttpServletResponse.SC_OK),
+		                				new DaseinObjectToXmlEntity<DisksModel>(disksModel),
+		                				new Header[]{});
+		                	} else {
+		                		throw new RuntimeException("Invalid invocation count!");
+		                	}
+		                }
+		            };
+	    		} else {
+	    			final DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
+		    		dataVirtualHardDiskModel.setLun(DEVICE_ID);
+	    			
+		    		new MockUp<CloseableHttpClient>() {
+		                @Mock(invocations = 3)
+		                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+		                	if (inv.getInvocationCount() == 1) {
+		                		assertGet(request, String.format(DISK_SERVICES));
+		                		return getHttpResponseMock(
+		                				getStatusLineMock(HttpServletResponse.SC_OK),
+		                				new DaseinObjectToXmlEntity<DisksModel>(disksModel),
+		                				new Header[]{});
+		                	} else if (inv.getInvocationCount() == 2 || inv.getInvocationCount() == 3) {
+		                		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
+		                		if (inv.getInvocationCount() == 2) {
+		                			dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
+		                		} else {
+		                			dataVirtualHardDiskModel.setDiskName(GET_VOLUME_ID);
+		                		}
+		                		return getHttpResponseMock(
+		                				getStatusLineMock(HttpServletResponse.SC_OK),
+		                				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(dataVirtualHardDiskModel),
+		                				new Header[]{});
+		                	} else {
+		                		throw new RuntimeException("Invalid invocation count!");
+		                	}
+		                }
+		            };
+	    		}
     		} else {
     			new MockUp<CloseableHttpClient>() {
 	                @Mock(invocations = 1)
 	                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
 	                	if (inv.getInvocationCount() == 1) {
-	                		assertGet(request, String.format(DISK_SERVICES, ENDPOINT, ACCOUNT_NO));
-	                		return getHttpResponseMock(
-	                				getStatusLineMock(HttpServletResponse.SC_OK),
-	                				new DaseinObjectToXmlEntity<DisksModel>(new DisksModel()),
-	                				new Header[]{});
-	                	} else {
-	                		throw new RuntimeException("Invalid invocation count!");
-	                	}
-	                }
-	            };
-    		}
-    	} else if (methodName.startsWith("listVolumeStatus")) {
-    		
-    		if (!methodName.endsWith("NoVolumeFound")) {
-    		
-	    		final DisksModel disksModel = new DisksModel();
-	    		disksModel.setDisks(Arrays.asList(
-	    				createDiskModel(VOLUME_ID), 
-	    				createDiskModel(GET_VOLUME_ID)));
-	    		
-	    		new MockUp<CloseableHttpClient>() {
-	                @Mock(invocations = 1)
-	                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-	                	if (inv.getInvocationCount() == 1) {
-	                		assertGet(request, String.format(DISK_SERVICES, ENDPOINT, ACCOUNT_NO));
-	                		return getHttpResponseMock(
-	                				getStatusLineMock(HttpServletResponse.SC_OK),
-	                				new DaseinObjectToXmlEntity<DisksModel>(disksModel),
-	                				new Header[]{});
-	                	} else {
-	                		throw new RuntimeException("Invalid invocation count!");
-	                	}
-	                }
-	            };
-    		} else {
-    			new MockUp<CloseableHttpClient>() {
-	                @Mock(invocations = 1)
-	                public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-	                	if (inv.getInvocationCount() == 1) {
-	                		assertGet(request, String.format(DISK_SERVICES, ENDPOINT, ACCOUNT_NO));
+	                		assertGet(request, String.format(DISK_SERVICES));
 	                		return getHttpResponseMock(
 	                				getStatusLineMock(HttpServletResponse.SC_OK),
 	                				new DaseinObjectToXmlEntity<DisksModel>(new DisksModel()),
@@ -222,20 +199,17 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	            };
     		}
     	}
-    	
     }
     
 	@Test
 	public void attachShouldPostWithCorrectRequest() throws InternalException, CloudException {
-		
 		new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(HttpUriRequest request) {
-        		assertPost(request, String.format(DATA_DISK_RESOURCE, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+        		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
             	return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
             }
         };
-		
         new AzureVolumeSupport(azureMock, new Volume()).attach(VOLUME_ID, "TESTSERVER", "TESTDEVICE");
 	}
 	
@@ -270,14 +244,14 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(dataVirtualHardDiskModel),
             				new Header[]{});
             	} else if (inv.getInvocationCount() == 2) {
             		assertDelete(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s/roles/%s/DataDisks/%s", 
-            				ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, DEVICE_ID));
+            				SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, DEVICE_ID));
             		return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
             	} else {
             		throw new RuntimeException("Invalid invocation count!");
@@ -315,7 +289,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(new DataVirtualHardDiskModel()),
@@ -357,13 +331,13 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 3)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
             		return getDataDisksCountResponseMock;
             	} else if (inv.getInvocationCount() == 2) {
-            		assertPost(request, String.format(DATA_DISK_RESOURCE, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+            		assertPost(request, String.format(DATA_DISK_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
 	            	return getDeplaymentModelResponseMock;
             	} else if (inv.getInvocationCount() == 3) {
-            		assertGet(request, String.format(DATA_DISK_LUN, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, 2));
+            		assertGet(request, String.format(DATA_DISK_LUN, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, 2));
             		return getDeplaymentModelResponseMock;
             	} else {
             		throw new RuntimeException("Invalid invocation count!");
@@ -390,7 +364,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test(expected = InternalException.class)
-	public void createVolumeShouldThrowExceptionIfReachMaximumDisksCount() throws InternalException, CloudException {
+	public void createVolumeShouldThrowExceptionIfReachMaximumVolumesCount() throws InternalException, CloudException {
 		
 		RoleModel roleModel = new RoleModel();
 		roleModel.setRoleName(ROLE_NAME);
@@ -407,7 +381,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
             		return getDataDisksCountResponseMock;
             	} else {
             		throw new RuntimeException("Invalid invocation count!");
@@ -428,7 +402,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertDelete(request, String.format(DISK_SERVICES+"/%s?comp=media", ENDPOINT, ACCOUNT_NO, VOLUME_ID));
+            		assertDelete(request, String.format(DISK_SERVICES+"/%s?comp=media", VOLUME_ID));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				null,
@@ -542,7 +516,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 		assertFalse("volume size determined by prodcut is incorrect", new AzureDisk(azureMock).isVolumeSizeDeterminedByProduct());
 	}
 	
-	@Test //TODO check
+	@Test
 	public void listPossibleDeviceIdsShouldReturnCorrectResult() throws InternalException, CloudException {
 		Iterator<String> possibleDeviceIds = new AzureDisk(azureMock).listPossibleDeviceIds(null).iterator();
 		for (int index = 0; index < 16; index++) {
