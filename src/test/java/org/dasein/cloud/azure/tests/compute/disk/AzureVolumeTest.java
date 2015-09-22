@@ -13,8 +13,6 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.params.HttpParams;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
@@ -46,7 +44,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
@@ -57,14 +54,16 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 
 	private final String URL_PREFIX = ENDPOINT + "/" + ACCOUNT_NO;
 	private final String DISK_SERVICES = URL_PREFIX + "/services/disks";
-    private final String HOSTED_SERVICES = URL_PREFIX + "/services/hostedservices";
+    
     private final String DEPLOYMENT_RESOURCE = URL_PREFIX + "/services/hostedservices/%s/deployments/%s";
-    private final String DATA_DISK_LUN = URL_PREFIX + "/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks/%s";
-    private final String DATA_DISK_RESOURCE = URL_PREFIX + "/services/hostedservices/%s/deployments/%s/roles/%s/DataDisks";
+    private final String DATA_DISK_RESOURCE = DEPLOYMENT_RESOURCE + "/roles/%s/DataDisks";
+    private final String DATA_DISK_LUN = DATA_DISK_RESOURCE + "/%s";
+    private final String REMOVE_DISK = DISK_SERVICES+"/%s?comp=media";
     
     private final String VOLUME_ID = "TEST_VOLUME";
     private final String GET_VOLUME_ID = VOLUME_ID + "_GET";
     private final String DEVICE_ID = "1";
+    private final String VIRTUAL_MACHINE_ID = SERVICE_NAME + ":" + DEPLOYMENT_NAME + ":" + ROLE_NAME;
     
     @Mocked
 	protected AzureComputeServices azureComputeServicesMock;
@@ -171,7 +170,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 		                				new DaseinObjectToXmlEntity<DisksModel>(disksModel),
 		                				new Header[]{});
 		                	} else if (inv.getInvocationCount() == 2 || inv.getInvocationCount() == 3) {
-		                		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
+		                		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
 		                		if (inv.getInvocationCount() == 2) {
 		                			dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
 		                		} else {
@@ -261,14 +260,13 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(dataVirtualHardDiskModel),
             				new Header[]{});
             	} else if (inv.getInvocationCount() == 2) {
-            		assertDelete(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s/roles/%s/DataDisks/%s", 
-            				SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, DEVICE_ID));
+            		assertDelete(request, String.format(DATA_DISK_LUN, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME, DEVICE_ID));
             		return getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
             	} else {
             		throw new RuntimeException("Invalid invocation count!");
@@ -278,7 +276,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
         
         Volume volume = new Volume();
 		volume.setProviderVolumeId(VOLUME_ID);
-		volume.setProviderVirtualMachineId(SERVICE_NAME + ":" + DEPLOYMENT_NAME + ":" + ROLE_NAME);
+		volume.setProviderVirtualMachineId(VIRTUAL_MACHINE_ID);
 		new AzureVolumeSupport(azureMock, volume).detach(VOLUME_ID, false);
 	}
 	
@@ -306,7 +304,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(HOSTED_SERVICES + "/%s/deployments/%s", SERVICE_NAME, DEPLOYMENT_NAME));
+            		assertGet(request, String.format(DEPLOYMENT_RESOURCE, SERVICE_NAME, DEPLOYMENT_NAME));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				new DaseinObjectToXmlEntity<DataVirtualHardDiskModel>(new DataVirtualHardDiskModel()),
@@ -319,7 +317,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
         
         Volume volume = new Volume();
 		volume.setProviderVolumeId(VOLUME_ID);
-		volume.setProviderVirtualMachineId(SERVICE_NAME + ":" + DEPLOYMENT_NAME + ":" + ROLE_NAME);
+		volume.setProviderVirtualMachineId(VIRTUAL_MACHINE_ID);
 		new AzureVolumeSupport(azureMock, volume).detach(VOLUME_ID, false);
 	}
 
@@ -419,7 +417,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
         };
 		
 		VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
-				.withVirtualMachineId("TESTVM");
+				.withVirtualMachineId(VIRTUAL_MACHINE_ID);
 		String diskName = new AzureDisk(azureMock).createVolume(options);
 		assertEquals("match disk name for createVolume failed", VOLUME_ID, diskName);
 	}
@@ -431,7 +429,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-            		assertDelete(request, String.format(DISK_SERVICES+"/%s?comp=media", VOLUME_ID));
+            		assertDelete(request, String.format(REMOVE_DISK, VOLUME_ID));
             		return getHttpResponseMock(
             				getStatusLineMock(HttpServletResponse.SC_OK),
             				null,
@@ -467,8 +465,8 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	
 	@Test
 	public void listVolumesByFilterShouldReturnCorrectResult() throws InternalException, CloudException {
-		
-		VolumeFilterOptions options = VolumeFilterOptions.getInstance();						//TODO, filter has no effect
+		//TODO, filter has no effect
+		VolumeFilterOptions options = VolumeFilterOptions.getInstance();						
 		Iterator<Volume> volumes = new AzureDisk(azureMock).listVolumes(options).iterator();
 		assertTrue("find volumes returns empty list", volumes.hasNext());
 		
@@ -483,19 +481,24 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	
 	@Test
 	public void listVolumesByFilterShouldReturnEmptyListIfNoVolumeFound() throws InternalException, CloudException {
-		VolumeFilterOptions options = VolumeFilterOptions.getInstance();						//TODO, filter has no effect
+		//TODO, filter has no effect
+		VolumeFilterOptions options = VolumeFilterOptions.getInstance();					
 		Iterator<Volume> volumes = new AzureDisk(azureMock).listVolumes(options).iterator();
 		assertFalse("find more than one volume from the empty result list", volumes.hasNext());
 	}
 	
 	@Test
 	public void listVolumeStatusShouldReturnCorrectResult() throws InternalException, CloudException {
+		
 		Iterator<ResourceStatus> resourceStatuses = new AzureDisk(azureMock).listVolumeStatus().iterator();
 		assertTrue("find resource status for volume return empty list", resourceStatuses.hasNext());
+		
 		assertReflectionEquals("match value of resource status failed for volume with id " + VOLUME_ID, 
 				new ResourceStatus(VOLUME_ID, VolumeState.AVAILABLE), resourceStatuses.next());
+		
 		assertReflectionEquals("match value of resource status failed for volume with id " + GET_VOLUME_ID, 
 				new ResourceStatus(GET_VOLUME_ID, VolumeState.AVAILABLE), resourceStatuses.next());
+		
 		assertFalse("more than expected volume status found", resourceStatuses.hasNext());
 	}
 	
@@ -507,8 +510,10 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	
 	@Test
 	public void getVolumeShouldReturnCorrectResult() throws InternalException, CloudException {
+		
 		Volume volume = new AzureDisk(azureMock).getVolume(GET_VOLUME_ID);
 		assertNotNull("failed to retrieved volume by id " + GET_VOLUME_ID, volume);
+		
 		Volume expectedVolume = createExpectedVolume(GET_VOLUME_ID);
 		assertReflectionEquals("match fields of volume failed", expectedVolume, volume);
 	}
@@ -598,7 +603,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 		volume.setProviderRegionId(REGION);
 		volume.setCurrentState(VolumeState.AVAILABLE);
 		volume.setType(VolumeType.HDD);
-		volume.setProviderVirtualMachineId(SERVICE_NAME + ":" + DEPLOYMENT_NAME + ":" + ROLE_NAME);
+		volume.setProviderVirtualMachineId(VIRTUAL_MACHINE_ID);
 		volume.setGuestOperatingSystem(Platform.UNKNOWN);
 		volume.setDataCenterId(REGION);
 		volume.setSize(Storage.valueOf("1000gb"));
