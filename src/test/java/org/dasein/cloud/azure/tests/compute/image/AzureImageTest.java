@@ -2,11 +2,13 @@ package org.dasein.cloud.azure.tests.compute.image;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
-
+import static org.unitils.reflectionassert.ReflectionAssert.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Map;
+
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.http.Header;
@@ -74,7 +76,7 @@ public class AzureImageTest extends AzureTestsBase {
 	@Before
 	public void initExpectations() throws InternalException, CloudException {
         
-		String methodName = name.getMethodName();
+		final String methodName = name.getMethodName();
 
         if (methodName.startsWith("capture")) {
         	
@@ -330,8 +332,8 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
 		MachineImage resultImage = support.getImage(IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", null, false, true);
-		assertEquals("get os image with unexpected field values", expectedImage, resultImage);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, null, false, true);
+		assertReflectionEquals("get os image with unexpected field values", expectedImage, resultImage);
 	}
 	
 	@Test
@@ -357,8 +359,8 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
 		MachineImage resultImage = support.getImage(IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", "UP", false, false);
-		assertEquals("get vm image with unexpected field values", expectedImage, resultImage);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "UP", false, false);
+		assertReflectionEquals("get vm image with unexpected field values", expectedImage, resultImage);
 	}
 	
 	@Test
@@ -675,7 +677,7 @@ public class AzureImageTest extends AzureTestsBase {
 	}
 	
 	private AzureMachineImage getExpectedMachineImage(String owner, String region, String imageId, 
-			Platform platform, String software, String state, boolean isPublic, boolean osMachineImage) {
+			Platform platform, String osState, boolean isPublic, boolean osMachineImage) {
 		AzureMachineImage expectedImage = new AzureMachineImage();
 		expectedImage.setCurrentState(MachineImageState.ACTIVE);
 		expectedImage.setArchitecture(Architecture.I64);
@@ -691,13 +693,12 @@ public class AzureImageTest extends AzureTestsBase {
 		} else {
 			expectedImage.setMediaLink(String.format(VM_IMAGE_META_LINK, IMAGE_ID));
 			expectedImage.setAzureImageType("VMImage");
-			expectedImage.setTag("OSState", state);
+			expectedImage.setTag("OSState", osState);
 		}
-		expectedImage.setTags(new HashMap<String, String>());
+		expectedImage.setTag("public", Boolean.toString(isPublic));
 		expectedImage.setType(MachineImageType.VOLUME);
 		expectedImage.setImageClass(ImageClass.MACHINE);
-		expectedImage.setSoftware(software);
-		expectedImage.setTag("public", Boolean.toString(isPublic));
+		expectedImage.setSoftware("");
 		return expectedImage;
 	}
 	
