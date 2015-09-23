@@ -19,7 +19,6 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.azure.AzureService;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
@@ -33,6 +32,7 @@ import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
 import org.dasein.cloud.compute.ImageCreateOptions;
+import org.dasein.cloud.compute.ImageFilterOptions;
 import org.dasein.cloud.compute.MachineImage;
 import org.dasein.cloud.compute.MachineImageState;
 import org.dasein.cloud.compute.MachineImageType;
@@ -42,7 +42,6 @@ import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
 import org.dasein.util.CalendarWrapper;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -52,7 +51,6 @@ public class AzureImageTest extends AzureTestsBase {
 	
 	private final String IMAGE_ID = "TESTIMAGEID";
 	private final String IMAGE_NAME = "TESTIMAGENAME";
-	private final String GET_IMAGE_ID = "TESTGETIMAGEID";
 	
 	private final String CAPTURE_IMAGE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
 	private final String REMOVE_VM_IMAGE_URL = "%s/%s/services/vmimages/%s?comp=media";
@@ -79,6 +77,7 @@ public class AzureImageTest extends AzureTestsBase {
 		String methodName = name.getMethodName();
 
         if (methodName.startsWith("capture")) {
+        	
     		new NonStrictExpectations() {
     			{ azureMock.getComputeServices(); result = azureComputeServicesMock; }
     			{ azureComputeServicesMock.getVirtualMachineSupport(); result = azureVirtualMachineSupportMock; }
@@ -154,7 +153,21 @@ public class AzureImageTest extends AzureTestsBase {
 		            }
 		        };
 			}
-		} 
+		} else if ((methodName.endsWith("ReturnCorrectResult") && (!methodName.contains("ForAllRegions")) && (methodName.startsWith("listImage")) || 
+				methodName.equals("listMachineImagesShouldReturnCorrectResult"))) {
+			
+			OSImagesModel osModel = new OSImagesModel();
+			osModel.setImages(Arrays.asList(
+					createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", "user", IMAGE_ID, "rhel"),
+					createOSImageModel(REGION + ";REG-WEST2", "user", IMAGE_ID, "windows")));
+			
+			VMImagesModel vmModel = new VMImagesModel();
+			vmModel.setVmImages(Arrays.asList(
+					createVMImageModel(REGION, "user", IMAGE_ID, "windows", "UP"),
+					createVMImageModel(REGION + ";REG-EAST1", "user", IMAGE_ID, "rhel", "UP")));
+			
+			mockGetAllImagesResponse(osModel, vmModel, false, true, false);
+		}
 	}
 	
 	@Test
@@ -302,130 +315,336 @@ public class AzureImageTest extends AzureTestsBase {
 		new AzureOSImage(azureMock).removeImageShare(null, null);
 	}
 	
+	@Test(expected=OperationNotSupportedException.class)
+	public void removePublicShareShouldThrowException() throws CloudException, InternalException {
+		new AzureOSImage(azureMock).removePublicShare(null);
+	}
+	
 	@Test
 	public void getOsImageShouldReturnCorrectResult() throws CloudException, InternalException {
 		
 		OSImagesModel model = new OSImagesModel();
-		model.setImages(Arrays.asList(createOSImageModel(REGION, "user", GET_IMAGE_ID, "rhel")));
-		
-		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<OSImagesModel>(model),
-				new Header[]{});
-		
-		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<VMImagesModel>(new VMImagesModel()),
-				new Header[]{});
-		
-		new MockUp<CloseableHttpClient>() {
-            @Mock(invocations = 2)
-            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-            	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
-            		return osImagesResponseMock; 
-            	} else if (inv.getInvocationCount() == 2) {
-            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, REGION, ""));
-            		return vmImagesResponseMock;
-            	} else {
-            		throw new RuntimeException("Invalid invocation count!");
-            	}
-            }
-        };
+		model.setImages(Arrays.asList(createOSImageModel(REGION, "user", IMAGE_ID, "rhel")));
+        
+        mockGetAllImagesResponse(model, new VMImagesModel(), false, true, true);
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
-		MachineImage resultImage = support.getImage(GET_IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, GET_IMAGE_ID, Platform.UNIX, "", null, false, true);
+		MachineImage resultImage = support.getImage(IMAGE_ID);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", null, false, true);
 		assertEquals("get os image with unexpected field values", expectedImage, resultImage);
+	}
+	
+	@Test
+	public void getOsImageShouldReturnNullIfNotFound() throws CloudException, InternalException {
+		
+		OSImagesModel model = new OSImagesModel();
+		model.setImages(Arrays.asList(createOSImageModel(REGION, "user", IMAGE_ID, "rhel")));
+        
+        mockGetAllImagesResponse(model, new VMImagesModel(), false, true, true);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		MachineImage resultImage = support.getImage(IMAGE_ID + "_NOTFOUND");
+		assertNull("get image by id " + IMAGE_ID + "_NOTFOUND returns invalid result", resultImage);
 	}
 	
 	@Test
 	public void getVmImageShouldReturnCorrectResult() throws CloudException, InternalException {
 		
 		VMImagesModel model = new VMImagesModel();
-		model.setVmImages(Arrays.asList(createVMImageModel(REGION, "user", GET_IMAGE_ID, "rhel", "UP")));
-		
-		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<OSImagesModel>(new OSImagesModel()),
-				new Header[]{});
-		
-		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<VMImagesModel>(model),
-				new Header[]{});
-		
-		new MockUp<CloseableHttpClient>() {
-            @Mock(invocations = 2)
-            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-            	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
-            		return osImagesResponseMock; 
-            	} else if (inv.getInvocationCount() == 2) {
-            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, REGION, ""));
-            		return vmImagesResponseMock;
-            	} else {
-            		throw new RuntimeException("Invalid invocation count!");
-            	}
-            }
-        };
+		model.setVmImages(Arrays.asList(createVMImageModel(REGION, "user", IMAGE_ID, "rhel", "UP")));
+        
+        mockGetAllImagesResponse(new OSImagesModel(), model, false, true, true);
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
-		MachineImage resultImage = support.getImage(GET_IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, GET_IMAGE_ID, Platform.UNIX, "", "UP", false, false);
+		MachineImage resultImage = support.getImage(IMAGE_ID);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", "UP", false, false);
 		assertEquals("get vm image with unexpected field values", expectedImage, resultImage);
 	}
 	
 	@Test
+	public void getVmImageShouldReturnNullIfNotFound() throws CloudException, InternalException {
+		VMImagesModel model = new VMImagesModel();
+		model.setVmImages(Arrays.asList(createVMImageModel(REGION, "user", IMAGE_ID, "rhel", "UP")));
+        
+        mockGetAllImagesResponse(new OSImagesModel(), model, false, true, true);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		MachineImage resultImage = support.getImage(IMAGE_ID + "_NOTFOUND");
+		assertNull("get image by id " + IMAGE_ID + "_NOTFOUND returns invalid result", resultImage);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void getImageShouldThrowExceptionIfIdIsNull() throws CloudException, InternalException {
+		new AzureOSImage(azureMock).getImage(null);
+	}
+	
+	@Test
 	public void listImageStatusShouldReturnCorrectResult() throws CloudException, InternalException {
-		
-		OSImagesModel osModel = new OSImagesModel();
-		osModel.setImages(Arrays.asList(createOSImageModel(REGION, "user", GET_IMAGE_ID, "rhel")));
-		
-		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<OSImagesModel>(osModel),
-				new Header[]{});
-		
-		VMImagesModel vmModel = new VMImagesModel();
-		vmModel.setVmImages(Arrays.asList(createVMImageModel(REGION, "user", GET_IMAGE_ID, "rhel", "UP")));
-		
-		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
-				getStatusLineMock(HttpServletResponse.SC_OK),
-				new DaseinObjectToXmlEntity<VMImagesModel>(vmModel),
-				new Header[]{});
-		
-		new MockUp<CloseableHttpClient>() {
-            @Mock(invocations = 2)
-            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
-            	if (inv.getInvocationCount() == 1) {
-            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
-            		return osImagesResponseMock; 
-            	} else if (inv.getInvocationCount() == 2) {
-            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, REGION, "user"));
-            		return vmImagesResponseMock;
-            	} else {
-            		throw new RuntimeException("Invalid invocation count!");
-            	}
-            }
-        };
         
         AzureOSImage support = new AzureOSImage(azureMock);
         Iterator<ResourceStatus> imageIter = support.listImageStatus(ImageClass.MACHINE).iterator();
 		assertTrue("image list is empty", imageIter.hasNext());
+		int count = 0;
 		while (imageIter.hasNext()) {
 			assertEquals("image status is not active", MachineImageState.ACTIVE, imageIter.next().getResourceStatus());
+			count++;
 		}
+		assertEquals("count of matched image status is invalid", 4, count);
 	}
 	
 	@Test
 	public void  listImageStatusShouldReturnEmptyIfImageClassIsNotMachine() throws CloudException, InternalException {
 		AzureOSImage support = new AzureOSImage(azureMock);
 		Iterator<ResourceStatus> imageIter = support.listImageStatus(ImageClass.RAMDISK).iterator();
-		assertFalse("image list is empty", imageIter.hasNext());
+		assertFalse("image list is not empty", imageIter.hasNext());
+	}
+
+	@Test
+	public void listImagesByFilterShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+        ImageFilterOptions options = ImageFilterOptions.getInstance(ImageClass.MACHINE);
+        Iterator<MachineImage> imageIter = support.listImages(options).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next();
+		}
+		assertEquals("images count for all regions and all users is wrong", 4, count);
 	}
 	
+	@Test
+	public void listImagesByFilterForAllRegionsShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		OSImagesModel osModel = new OSImagesModel();
+		osModel.setImages(Arrays.asList(
+				createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", "user", IMAGE_ID, "rhel"),
+				createOSImageModel("REG-EAST1", "user", IMAGE_ID, "windows")));
+		
+		VMImagesModel vmModel = new VMImagesModel();
+		vmModel.setVmImages(Arrays.asList(
+				createVMImageModel(REGION, "user", IMAGE_ID, "rhel", "UP"),
+				createVMImageModel("REG-EAST1;REG-WEST2", "user", IMAGE_ID, "rhel", "UP")));
+		
+		mockGetAllImagesResponse(osModel, vmModel, true, true, false);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+        ImageFilterOptions options = ImageFilterOptions.getInstance(ImageClass.MACHINE)
+        		.withAllRegions(true);
+        Iterator<MachineImage> imageIter = support.listImages(options).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next();
+		}
+		assertEquals("images count for all regions and all users is wrong", 7, count);
+	}
 	
+	@Test
+	public void listImagesByFilterShouldReturnEmptyIfImageClassIsNotMachine() throws CloudException, InternalException {
+		
+		ImageFilterOptions options = ImageFilterOptions.getInstance(ImageClass.RAMDISK);
+		Iterator<MachineImage> imageIter = new AzureOSImage(azureMock).listImages(options).iterator();
+		assertFalse("image list is not empty", imageIter.hasNext());
+	}
+	
+	@Test
+	public void listImagesByClassShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listImages(ImageClass.MACHINE).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next(); 
+		}
+		assertEquals("images count for all regions and all users is wrong", 4, count);
+	}
+	
+	@Test
+	public void listImagesByClassShouldReturnEmptyIfImageClassIsNotMachine() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listImages(ImageClass.RAMDISK).iterator();
+		assertFalse("image list is not empty", imageIter.hasNext());
+	}
+	
+	@Test
+	public void listImagesByClassAndOwnerShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listImages(ImageClass.MACHINE, ACCOUNT_NO).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		while (imageIter.hasNext()) {
+			imageIter.next(); 
+			count++;
+		}
+		assertEquals("images count for all regions and all users is wrong", 4, count);
+	}
+	
+	@Test
+	public void listImagesByClassAndOwnerShouldReturnEmptyIfImageClassIsNotMachine() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listImages(ImageClass.RAMDISK, null).iterator();
+		assertFalse("image list is not empty", imageIter.hasNext());
+	}
+	
+	@Test
+	public void listImagesByClassAndOwnerShouldReturnEmptyIfOwnerIsNotContextAccount() throws CloudException, InternalException {
+		
+		final String TARGET_OWNER = "--Oracle--";
+		
+		OSImagesModel osModel = new OSImagesModel();
+		osModel.setImages(Arrays.asList(
+				createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", TARGET_OWNER, IMAGE_ID, "rhel"),
+				createOSImageModel(REGION + ";REG-WEST2", "user", IMAGE_ID, "windows")));
+		
+		VMImagesModel vmModel = new VMImagesModel();
+		vmModel.setVmImages(Arrays.asList(
+				createVMImageModel(REGION, TARGET_OWNER, IMAGE_ID, "windows", "UP"),
+				createVMImageModel(REGION + ";REG-EAST1", "user", IMAGE_ID, "rhel", "UP")));
+		
+		mockGetAllImagesResponse(osModel, vmModel, false, true, false);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listImages(ImageClass.MACHINE, TARGET_OWNER).iterator();
+		assertFalse("image list is not empty", imageIter.hasNext());
+	}
+	
+	@Test
+	public void listMachineImagesShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listMachineImages().iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next(); 
+		}
+		assertEquals("images count for all regions and all users is wrong", 4, count);
+	}
+	
+	@Test
+	public void listMachineImagesOwnedByShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		final String TARGET_OWNER = "--Oracle--";
+		
+		OSImagesModel osModel = new OSImagesModel();
+		osModel.setImages(Arrays.asList(
+				createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", TARGET_OWNER, IMAGE_ID, "rhel"),
+				createOSImageModel(REGION + ";REG-WEST2", "--public--", IMAGE_ID, "windows")));
+		
+		VMImagesModel vmModel = new VMImagesModel();
+		vmModel.setVmImages(Arrays.asList(
+				createVMImageModel(REGION, "user", IMAGE_ID, "windows", "UP"),
+				createVMImageModel(REGION + ";REG-EAST1", TARGET_OWNER, IMAGE_ID, "rhel", "UP")));
+		
+		mockGetAllImagesResponse(osModel, vmModel, false, true, true);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.listMachineImagesOwnedBy(TARGET_OWNER).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next(); 
+		}
+		assertEquals("count of images owned by " + TARGET_OWNER + " is wrong", 2, count);
+	}
+	
+	@Test
+	public void searchPublicImagesByFilterShouldReturnCorrectResult() throws InternalException, CloudException {
+		
+		OSImagesModel osModel = new OSImagesModel();
+		osModel.setImages(Arrays.asList(
+				createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", "--Oracle--", IMAGE_ID, "rhel"),
+				createOSImageModel(REGION + ";REG-WEST2", "--public--", IMAGE_ID, "windows")));
+		
+		VMImagesModel vmModel = new VMImagesModel();
+		vmModel.setVmImages(Arrays.asList(
+				createVMImageModel(REGION, "user", IMAGE_ID, "--public--", "UP"),
+				createVMImageModel(REGION + ";REG-EAST1", "--Oracle--", IMAGE_ID, "rhel", "UP")));
+		
+		mockGetAllImagesResponse(osModel, vmModel, false, false, true);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		ImageFilterOptions options = ImageFilterOptions.getInstance(ImageClass.MACHINE).onPlatform(Platform.UNIX);
+		Iterator<MachineImage> imageIter = support.searchPublicImages(options).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next(); 
+		}
+		assertEquals("count of " + ImageClass.MACHINE.name() + " images on platform " + Platform.RHEL.name() + " is wrong", 2, count);
+	}
+	
+	@Test
+	public void searchPublicImagesByFilterShouldReturnEmptyIfClassIsNotMachine() throws InternalException, CloudException {
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		ImageFilterOptions options = ImageFilterOptions.getInstance(ImageClass.RAMDISK).onPlatform(Platform.RHEL);
+		Iterator<MachineImage> imageIter = support.searchPublicImages(options).iterator();
+		assertFalse("result image list is not empty", imageIter.hasNext());
+	}
+	
+	@Test
+	public void searchPublicImagesByAllCriteriaShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		OSImagesModel osModel = new OSImagesModel();
+		osModel.setImages(Arrays.asList(
+				createOSImageModel(REGION + ";REG-EAST1;REG-WEST2", "--Oracle--", "A9128282", "rhel"),
+				createOSImageModel(REGION + ";REG-WEST2", "--public--", "A2828", "windows")));
+		
+		VMImagesModel vmModel = new VMImagesModel();
+		vmModel.setVmImages(Arrays.asList(
+				createVMImageModel(REGION, "user", IMAGE_ID, "rhel", "UP"),
+				createVMImageModel(REGION + ";REG-EAST1", "--Oracle--", "B2", "rhel", "UP")));
+		
+		mockGetAllImagesResponse(osModel, vmModel, false, false, true);
+		
+		AzureOSImage support = new AzureOSImage(azureMock);
+		Iterator<MachineImage> imageIter = support.searchPublicImages("[A-Z][0-9]+", Platform.UNIX, Architecture.I64).iterator();
+		assertTrue("result image list is empty", imageIter.hasNext());
+		int count = 0;
+		for(; imageIter.hasNext(); count++) {
+			imageIter.next(); 
+		}
+		assertEquals("count of " + ImageClass.MACHINE.name() + " images on platform " + Platform.RHEL.name() + " is wrong", 2, count);
+		
+	}
+	
+	private void mockGetAllImagesResponse(OSImagesModel osImagesModel, VMImagesModel vmImagesModel, 
+			final boolean isGlobal, final boolean isPrivate, final boolean isPublic) {
+		
+		final CloseableHttpResponse osImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<OSImagesModel>(osImagesModel),
+				new Header[]{});
+		
+		final CloseableHttpResponse vmImagesResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<VMImagesModel>(vmImagesModel),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 2)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+            	if (inv.getInvocationCount() == 1) {
+            		assertGet(request, String.format(GET_OS_IMAGE_URL, ENDPOINT, ACCOUNT_NO));
+            		return osImagesResponseMock; 
+            	} else if (inv.getInvocationCount() == 2) {
+            		String global = isGlobal? "" : REGION;
+            		String user = (isPrivate && isPublic) ? "": (isPrivate? "user": "public");
+            		assertGet(request, String.format(GET_VM_IMAGE_URL, ENDPOINT, ACCOUNT_NO, global, user));
+            		return vmImagesResponseMock;
+            	} else {
+            		throw new RuntimeException("Invalid invocation count!");
+            	}
+            }
+        };
+		
+	}
 	
 	private OSImageModel createOSImageModel(String region, String category, String imageId, String os) {
 		OSImageModel model = new OSImageModel();
@@ -455,8 +674,8 @@ public class AzureImageTest extends AzureTestsBase {
 		return model;
 	}
 	
-	private AzureMachineImage getExpectedMachineImage(String owner, String region, String imageId, Platform platform, String software, 
-			String state, boolean isPublic, boolean osMachineImage) {
+	private AzureMachineImage getExpectedMachineImage(String owner, String region, String imageId, 
+			Platform platform, String software, String state, boolean isPublic, boolean osMachineImage) {
 		AzureMachineImage expectedImage = new AzureMachineImage();
 		expectedImage.setCurrentState(MachineImageState.ACTIVE);
 		expectedImage.setArchitecture(Architecture.I64);
@@ -481,6 +700,5 @@ public class AzureImageTest extends AzureTestsBase {
 		expectedImage.setTag("public", Boolean.toString(isPublic));
 		return expectedImage;
 	}
-	
 	
 }
