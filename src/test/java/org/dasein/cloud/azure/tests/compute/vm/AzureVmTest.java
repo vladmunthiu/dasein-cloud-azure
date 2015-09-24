@@ -639,4 +639,10 @@ public class AzureVmTest extends AzureTestsBase {
         assertNotNull(actualCapabilities);
         assertTrue(actualCapabilities.getClass() == VMCapabilities.class);
     }
+
+    @Test
+    public void testGetConsoleOutput() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+        assertEquals("", azureVM.getConsoleOutput("ANY_ID"));
+    }
 }
