@@ -129,7 +129,7 @@ public class AzureImageTest extends AzureTestsBase {
 
 		if (methodName.startsWith("capture") && 
 				!methodName.endsWith("NoServerFound") && !methodName.endsWith("InvalidStateToImage") && 
-				!methodName.endsWith("RequestThrowJAXBException")) {
+				!methodName.endsWith("ParsingRequestEntityFailed")) {
 			
 			final Operation.CaptureRoleAsVMImageOperation captureVMImageOperation = new Operation.CaptureRoleAsVMImageOperation();
             captureVMImageOperation.setOsState("Generalized");
@@ -263,7 +263,7 @@ public class AzureImageTest extends AzureTestsBase {
 	}
 	
 	@Test(expected = InternalException.class)
-	public void captureShouldThrowExceptionIfRequestThrowJAXBException() throws CloudException, InternalException {
+	public void captureShouldThrowExceptionIfParsingRequestEntityFailed() throws CloudException, InternalException {
 		new MockUp<AzureMethod>() {
 			@Mock
 			<T> String post(String resource, T object) throws JAXBException, CloudException, InternalException {

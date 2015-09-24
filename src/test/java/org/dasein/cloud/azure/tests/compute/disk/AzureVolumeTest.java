@@ -259,6 +259,22 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 		new AzureVolumeSupport(azureMock, new Volume()).attach(VOLUME_ID, "TESTSERVER", "TESTDEVICE");
 	}
 	
+	@Test(expected = InternalException.class)
+	public void attachShouldThrowExceptionIfParsingRequestEntityFailed() throws InternalException, CloudException {
+		
+		new MockUp<AzureMethod>() {
+			@Mock
+			<T> String post(String resource, T object) throws JAXBException, CloudException, InternalException {
+				throw new JAXBException("parsing object failed");
+			}
+		};
+		
+		Volume volume = new Volume();
+        volume.setName(VOLUME_ID);
+        volume.setMediaLink("http://test.blob.core.windows.net/disks/" + VOLUME_ID + ".vhd");
+		new AzureVolumeSupport(azureMock, volume).attach(VOLUME_ID, "TESTSERVER", "TESTDEVICE");
+	}
+	
 	@Test
 	public void detachShouldDeleteWithCorrectRequest() throws InternalException, CloudException {
 		
@@ -448,7 +464,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test(expected = InternalException.class)
-	public void createVolumeShouldThrowExceptionIfRequestThrowJAXBException() throws InternalException, CloudException {
+	public void createVolumeShouldThrowExceptionIfParsingRequestEntityFailed() throws InternalException, CloudException {
 		
 		DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
 		dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
