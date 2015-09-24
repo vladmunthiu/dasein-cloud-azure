@@ -492,12 +492,6 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
         };
         new AzureDisk(azureMock).remove(VOLUME_ID);
 	}
-	
-	@Test(expected = CloudException.class)
-	public void removeShouldDeleteWithCorrectRequestFromRetryRequest() {
-		
-		
-	}
 
 	@Test
 	public void listVolumesShouldReturnCorrectResult() throws InternalException, CloudException {
