@@ -3,12 +3,13 @@ package org.dasein.cloud.azure.tests.compute.disk;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
-
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
+import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.JAXBException;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -17,6 +18,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.azure.Azure;
+import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.disk.AzureDisk;
 import org.dasein.cloud.azure.compute.disk.model.AttachedToModel;
@@ -39,6 +42,7 @@ import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
 import org.dasein.util.CalendarWrapper;
+import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.junit.Before;
 import org.junit.Rule;
@@ -91,9 +95,15 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             };
             
             if (methodName.startsWith("createVolume")) {
-            	new NonStrictExpectations() {
-            		{ azureMock.getStorageEndpoint(); result = ENDPOINT; }
-            	};
+            	if (methodName.endsWith("NoStorageEndpointFound")) {
+            		new NonStrictExpectations() {
+	            		{ azureMock.getStorageEndpoint(); result = null; }
+	            	};
+            	} else {
+	            	new NonStrictExpectations() {
+	            		{ azureMock.getStorageEndpoint(); result = ENDPOINT; }
+	            	};
+            	}
             }
 
             if (!methodName.endsWith("NoServerFound")) {
@@ -293,7 +303,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	@Test(expected = InternalException.class)
 	public void detachShouldThrowExceptionIfNoServerFound() throws InternalException, CloudException {
 		Volume volume = new Volume();
-		volume.setProviderVirtualMachineId("TESTVM");
+		volume.setProviderVirtualMachineId(VM_ID);
 		new AzureVolumeSupport(azureMock, volume).detach(VOLUME_ID, false);
 	}
 	
@@ -325,7 +335,7 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	public void createVolumeShouldPostWithCorrectRequest() throws InternalException, CloudException {
 		
 		final VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
-				.withVirtualMachineId("TESTVM");
+				.withVirtualMachineId(VM_ID);
 		
 		DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
 		dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
@@ -386,7 +396,8 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 	
 	@Test(expected = InternalException.class)
 	public void createVolumeShouldThrowExceptionIfNoServerFound() throws InternalException, CloudException {
-		VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID);
+		VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
+				.withVirtualMachineId(VM_ID);
 		new AzureDisk(azureMock).createVolume(options);
 	}
 	
@@ -418,8 +429,48 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
 		
 		VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
 				.withVirtualMachineId(VIRTUAL_MACHINE_ID);
-		String diskName = new AzureDisk(azureMock).createVolume(options);
-		assertEquals("match disk name for createVolume failed", VOLUME_ID, diskName);
+		new AzureDisk(azureMock).createVolume(options);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void createVolumeShouldThrowExceptionIfNoStorageEndpointFound() throws InternalException, CloudException {
+		MockUp<VolumeCreateOptions> options = new MockUp<VolumeCreateOptions>() {
+			@Mock
+			Storage<Gigabyte> getVolumeSize() {
+				return null;
+			}
+			@Mock
+			String getProviderVirtualMachineId() {
+				return VM_ID;
+			}
+		};
+		new AzureDisk(azureMock).createVolume(options.getMockInstance());
+	}
+	
+	@Test(expected = InternalException.class)
+	public void createVolumeShouldThrowExceptionIfRequestThrowJAXBException() throws InternalException, CloudException {
+		
+		DataVirtualHardDiskModel dataVirtualHardDiskModel = new DataVirtualHardDiskModel();
+		dataVirtualHardDiskModel.setDiskName(VOLUME_ID);
+		RoleModel roleModel = new RoleModel();
+		roleModel.setRoleName(ROLE_NAME);
+		roleModel.setDataVirtualDisks(Arrays.asList(dataVirtualHardDiskModel));
+		final DeploymentModel deploymentModel = new DeploymentModel();
+		deploymentModel.setRoles(Arrays.asList(roleModel));
+		
+		new MockUp<AzureMethod>() {
+			@Mock
+			<T> T get(Class<T> classType, @Nonnull String resource) throws CloudException, InternalException {
+				return (T) deploymentModel;
+			}
+			@Mock
+			<T> String post(String resource, T object) throws JAXBException, CloudException, InternalException {
+				throw new JAXBException("parsing object failed");
+			}
+		};
+		final VolumeCreateOptions options = VolumeCreateOptions.getInstance(Storage.valueOf("10gb"), VOLUME_ID, VOLUME_ID)
+				.withVirtualMachineId(VM_ID);
+		new AzureDisk(azureMock).createVolume(options);
 	}
 
 	@Test
@@ -440,6 +491,12 @@ public class AzureVolumeTest extends AzureTestsBaseWithLocation {
             }
         };
         new AzureDisk(azureMock).remove(VOLUME_ID);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void removeShouldDeleteWithCorrectRequestFromRetryRequest() {
+		
+		
 	}
 
 	@Test

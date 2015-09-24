@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.JAXBException;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -18,6 +19,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
@@ -82,15 +84,29 @@ public class AzureImageTest extends AzureTestsBase {
     			{ azureComputeServicesMock.getVirtualMachineSupport(); result = azureVirtualMachineSupportMock; }
             };
 
-	        new NonStrictExpectations() {
-	        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
-	        	{ virtualMachineMock.getProviderVirtualMachineId(); result = "TESTVMID"; }
-	        	{ virtualMachineMock.getPlatform(); result = Platform.RHEL; }
-	        	{ virtualMachineMock.getCurrentState(); result = VmState.STOPPED; }
-	        	{ virtualMachineMock.getTag("serviceName"); result = SERVICE_NAME; }
-	        	{ virtualMachineMock.getTag("deploymentName"); result = DEPLOYMENT_NAME; }
-	        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
-	        };
+            if (methodName.endsWith("NoServerFound")) {
+            	new NonStrictExpectations() {
+		        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = null; }
+		        };
+            } else {
+            	new NonStrictExpectations() {
+		        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
+		        	{ virtualMachineMock.getProviderVirtualMachineId(); result = "TESTVMID"; }
+		        	{ virtualMachineMock.getPlatform(); result = Platform.RHEL; }
+		        	{ virtualMachineMock.getTag("serviceName"); result = SERVICE_NAME; }
+		        	{ virtualMachineMock.getTag("deploymentName"); result = DEPLOYMENT_NAME; }
+		        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
+		        };
+            	if (methodName.endsWith("InvalidStateToImage")) {
+            		new NonStrictExpectations() {
+    		        	{ virtualMachineMock.getCurrentState(); result = VmState.RUNNING; }
+    		        };
+            	} else {
+            		new NonStrictExpectations() {
+    		        	{ virtualMachineMock.getCurrentState(); result = VmState.STOPPED; }
+    		        };
+            	}
+            }
 	        
 	        if (methodName.endsWith("TerminateServiceFailed")) {
 	        	new NonStrictExpectations() {
@@ -111,7 +127,9 @@ public class AzureImageTest extends AzureTestsBase {
 				null,
 				new Header[]{});
 
-		if (methodName.startsWith("capture")) {
+		if (methodName.startsWith("capture") && 
+				!methodName.endsWith("NoServerFound") && !methodName.endsWith("InvalidStateToImage") && 
+				!methodName.endsWith("RequestThrowJAXBException")) {
 			
 			final Operation.CaptureRoleAsVMImageOperation captureVMImageOperation = new Operation.CaptureRoleAsVMImageOperation();
             captureVMImageOperation.setOsState("Generalized");
@@ -230,6 +248,30 @@ public class AzureImageTest extends AzureTestsBase {
         				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
 		support.captureImage(options);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void captureShouldThrowExceptionIfNoServerFound() throws CloudException, InternalException {
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
+	}
+	
+	@Test(expected = InternalException.class)
+	public void captureShouldThrowExceptionIfInvalidStateToImage() throws CloudException, InternalException {
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
+	}
+	
+	@Test(expected = InternalException.class)
+	public void captureShouldThrowExceptionIfRequestThrowJAXBException() throws CloudException, InternalException {
+		new MockUp<AzureMethod>() {
+			@Mock
+			<T> String post(String resource, T object) throws JAXBException, CloudException, InternalException {
+				throw new JAXBException("parsing object failed");
+			}
+		};
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
 	}
 	
 	@Test
