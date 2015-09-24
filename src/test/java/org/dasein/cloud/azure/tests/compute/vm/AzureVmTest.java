@@ -34,6 +34,7 @@ import org.dasein.cloud.azure.compute.AzureAffinityGroupSupport;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
+import org.dasein.cloud.azure.compute.vm.VMCapabilities;
 import org.dasein.cloud.azure.compute.vm.model.HostedServiceModel;
 import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.network.AzureNetworkServices;
@@ -62,6 +63,7 @@ import java.util.Arrays;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.unitils.reflectionassert.ReflectionAssert.assertReflectionEquals;
 
@@ -257,7 +259,7 @@ public class AzureVmTest extends AzureTestsBase {
         };
 
         VirtualMachineProduct actualProduct = azureVMSupport.getProduct("ANY_PRODUCT");
-        Assert.assertNotNull(actualProduct);
+        assertNotNull(actualProduct);
         assertReflectionEquals(expectedProduct, actualProduct);
 
     }
@@ -627,5 +629,14 @@ public class AzureVmTest extends AzureTestsBase {
         assertEquals(new URI(deployment.getUrl()).getHost(), virtualMachine.getPublicDnsAddress());
         assertTrue(virtualMachine.getPublicAddresses() != null && virtualMachine.getPublicAddresses().length == 1);
         assertEquals(roleInstance.getInstanceEndpoints().get(0).getVip(), virtualMachine.getPublicAddresses()[0].getIpAddress());
+    }
+
+    @Test
+    public void testGetCapabilities() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+
+        VirtualMachineCapabilities actualCapabilities = azureVM.getCapabilities();
+        assertNotNull(actualCapabilities);
+        assertTrue(actualCapabilities.getClass() == VMCapabilities.class);
     }
 }
