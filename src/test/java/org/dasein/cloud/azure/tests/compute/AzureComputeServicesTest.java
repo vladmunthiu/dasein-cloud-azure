@@ -18,8 +18,15 @@
 
 package org.dasein.cloud.azure.tests.compute;
 
+import junit.framework.Assert;
+import org.junit.Test;
+
 /**
  * Created by Vlad_Munthiu on 6/6/2014.
  */
 public class AzureComputeServicesTest {
+    @Test
+    public void test() {
+        Assert.assertTrue(true);
+    }
 }

@@ -295,9 +295,14 @@
                             <value>${proxyPort}</value>
                         </property>
                     </systemProperties>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                    </includes>
                     <excludes>
-                        <exclude>**/*.java</exclude>
+                        <exclude>**/DummyTest.java</exclude>
                     </excludes>
+                    <jvm>${env.JAVA_HOME}/bin/java</jvm>
                 </configuration>
             </plugin>
             <plugin>
