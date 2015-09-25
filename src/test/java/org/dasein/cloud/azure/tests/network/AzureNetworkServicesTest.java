@@ -23,11 +23,20 @@ package org.dasein.cloud.azure.tests.network;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.azure.network.AzureIpAddressSupport;
+import org.dasein.cloud.azure.network.AzureLoadBalancerSupport;
 import org.dasein.cloud.azure.network.AzureNetworkServices;
+import org.dasein.cloud.azure.network.AzureVPNSupport;
+import org.dasein.cloud.azure.network.AzureVlanSupport;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
+import org.dasein.cloud.network.IpAddressSupport;
+import org.dasein.cloud.network.LoadBalancerSupport;
+import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.network.VpnSupport;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -63,26 +72,35 @@ public class AzureNetworkServicesTest extends AzureTestsBase {
     }
 
     @Test
-    public void getIpAddressSupportShouldNotReturnNull() {
-        assertNotNull("azureNetworkServices.getIpAddressSupport() should not return null",
-                azureNetworkServices.getIpAddressSupport());
+    public void getIpAddressSupportShouldReturnCorrectResult() {
+        IpAddressSupport ipAddressSupport = azureNetworkServices.getIpAddressSupport();
+        assertNotNull("azureNetworkServices.getIpAddressSupport() should not return null", ipAddressSupport);
+        assertEquals("azureNetworkServices.getIpAddressSupport() should return correct class",
+                AzureIpAddressSupport.class, ipAddressSupport.getClass());
     }
 
     @Test
-    public void getLoadBalancerSupportShouldNotReturnNull() {
-        assertNotNull("azureNetworkServices.getLoadBalancerSupport() should not return null",
-                azureNetworkServices.getLoadBalancerSupport());
+    public void getLoadBalancerSupportShouldReturnCorrectResult() {
+        LoadBalancerSupport loadBalancerSupport = azureNetworkServices.getLoadBalancerSupport();
+        assertNotNull("azureNetworkServices.getLoadBalancerSupport() should not return null", loadBalancerSupport);
+        assertEquals("azureNetworkServices.getLoadBalancerSupport() should return correct class",
+                AzureLoadBalancerSupport.class, loadBalancerSupport.getClass());
     }
 
     @Test
-    public void getVlanSupportShouldNotReturnNull() {
-        assertNotNull("azureNetworkServices.getVlanSupport() should not return null",
-                azureNetworkServices.getVlanSupport());
+    public void getVlanSupportShouldReturnCorrectResult() {
+        VLANSupport vlanSupport = azureNetworkServices.getVlanSupport();
+        assertNotNull("azureNetworkServices.getVlanSupport() should not return null", vlanSupport);
+        assertEquals("azureNetworkServices.getVlanSupport() should return correct class", AzureVlanSupport.class,
+                vlanSupport.getClass());
     }
 
     @Test
-    public void getVpnSupportShouldNotReturnNull() {
-        assertNotNull("azureNetworkServices.getVpnSupport() should not return null", azureNetworkServices.getVpnSupport());
+    public void getVpnSupportShouldReturnCorrectResult() {
+        VpnSupport vpnSupport = azureNetworkServices.getVpnSupport();
+        assertNotNull("azureNetworkServices.getVpnSupport() should not return null", vpnSupport);
+        assertEquals("azureNetworkServices.getVpnSupport() should return correct class",
+                AzureVPNSupport.class, vpnSupport.getClass());
     }
 
     @Test
@@ -104,7 +122,7 @@ public class AzureNetworkServicesTest extends AzureTestsBase {
 
     @Test
     public void hasLoadBalancerSupportShouldReturnTrue() {
-        assertTrue("azureNetworkServices.hasLoadBalancerSupport() should return false",
+        assertTrue("azureNetworkServices.hasLoadBalancerSupport() should return true",
                 azureNetworkServices.hasLoadBalancerSupport());
     }
 
@@ -121,6 +139,6 @@ public class AzureNetworkServicesTest extends AzureTestsBase {
 
     @Test
     public void hasVlanSupportShouldReturnTrue() {
-        assertTrue("azureNetworkServices.hasVlanSupport() should return false", azureNetworkServices.hasVlanSupport());
+        assertTrue("azureNetworkServices.hasVlanSupport() should return true", azureNetworkServices.hasVlanSupport());
     }
 }
