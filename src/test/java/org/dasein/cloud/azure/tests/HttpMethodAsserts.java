@@ -75,7 +75,7 @@ public class HttpMethodAsserts {
                     @Override
                     public boolean evaluate(Object object) {
                         Header actualHeader = (Header) object;
-                        return expectedHeader.getName() == actualHeader.getName() && expectedHeader.getValue() == actualHeader.getValue();
+                        return expectedHeader.getName().equals(actualHeader.getName()) && expectedHeader.getValue().equals(actualHeader.getValue());
                     }
                 });
                 assertTrue(String.format("Expected %s header not found in the request or found with the wrong value in the request", expectedHeader.getName()), headerExists);
