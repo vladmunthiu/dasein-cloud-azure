@@ -79,6 +79,16 @@ public class AzureTestsBase {
             public Header[] getAllHeaders() {
                 return headers;
             }
+            
+            @Mock
+            public Header getFirstHeader(String name) {
+				for (Header header : headers) {
+					if (header.getName().equals(name)) {
+						return header;
+					}
+				}
+				return null;
+            }
         }.getMockInstance();
     }
 }
