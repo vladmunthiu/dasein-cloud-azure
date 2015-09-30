@@ -5,10 +5,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.annotation.XmlAnyElement;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import javax.xml.namespace.QName;
+
 import org.w3c.dom.Element;
 
 public class MapAdapter extends XmlAdapter<MapWrapper, Map<String, String>> {
@@ -33,7 +35,7 @@ public class MapAdapter extends XmlAdapter<MapWrapper, Map<String, String>> {
     	if (v != null && v.elements != null && !v.elements.isEmpty()) {
 	    	for (Object object : v.elements) {
 	    		Element element = (Element) object;
-	    		map.put(element.getNodeName(), element.getNodeValue());
+	    		map.put(element.getNodeName(), element.getTextContent());
 	    	}
     	}
     	return map;
@@ -42,6 +44,6 @@ public class MapAdapter extends XmlAdapter<MapWrapper, Map<String, String>> {
 }
 
 class MapWrapper {
-    @XmlAnyElement
-    List elements;
+    @XmlAnyElement(lax = true)
+    List<JAXBElement<String>> elements;
 }
