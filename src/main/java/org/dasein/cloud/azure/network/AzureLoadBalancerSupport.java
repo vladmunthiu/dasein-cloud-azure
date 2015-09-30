@@ -151,7 +151,7 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
         DefinitionModel.PolicyModel policy = new DefinitionModel.PolicyModel();
         String loadBalancingMethod = "RoundRobin";
 
-        LbListener lbListener =  options.getListeners()[0];
+        LbListener lbListener = options.getListeners().length > 0 ? options.getListeners()[0] : null;
         if(lbListener != null) {
             if (lbListener.getAlgorithm() != null && lbListener.getAlgorithm() == LbAlgorithm.SOURCE) {
                 loadBalancingMethod = "Performance";

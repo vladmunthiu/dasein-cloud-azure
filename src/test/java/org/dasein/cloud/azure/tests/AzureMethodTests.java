@@ -19,6 +19,7 @@
 package org.dasein.cloud.azure.tests;
 
 import mockit.*;
+import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -47,7 +48,7 @@ import static org.junit.Assert.assertNotNull;
  */
 public class AzureMethodTests
 {
-
+    @Mocked protected Logger logger;
     @Mocked ProviderContext mockedProviderContext;
 
     @Test

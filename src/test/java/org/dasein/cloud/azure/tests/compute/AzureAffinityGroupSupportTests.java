@@ -18,8 +18,11 @@
 
 package org.dasein.cloud.azure.tests.compute;
 
+import org.junit.Ignore;
+
 /**
  * Created by Vlad_Munthiu on 7/23/2014.
  */
+@Ignore("Should add back when there are tests in this class")
 public class AzureAffinityGroupSupportTests {
 }
