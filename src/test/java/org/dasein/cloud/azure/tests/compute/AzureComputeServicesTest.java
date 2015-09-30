@@ -25,15 +25,12 @@ import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.disk.AzureDisk;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
-import org.dasein.cloud.azure.network.AzureIpAddressSupport;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.AffinityGroupSupport;
 import org.dasein.cloud.compute.MachineImageSupport;
 import org.dasein.cloud.compute.VirtualMachineSupport;
 import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.network.IpAddressSupport;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -89,5 +86,4 @@ public class AzureComputeServicesTest extends AzureTestsBase {
         assertTrue("azureComputeServices.hasAffinityGroupSupport() should return true",
                 azureComputeServices.hasAffinityGroupSupport());
     }
-
 }

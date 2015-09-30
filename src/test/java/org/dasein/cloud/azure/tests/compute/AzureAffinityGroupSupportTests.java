@@ -19,10 +19,16 @@
 package org.dasein.cloud.azure.tests.compute;
 
 import org.junit.Ignore;
+import junit.framework.Assert;
+import org.junit.Test;
 
 /**
  * Created by Vlad_Munthiu on 7/23/2014.
  */
 @Ignore("Should add back when there are tests in this class")
 public class AzureAffinityGroupSupportTests {
+    @Test
+    public void test() {
+        Assert.assertTrue(true);
+    }
 }

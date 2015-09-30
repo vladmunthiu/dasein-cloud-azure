@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/vladmunthiu/dasein-cloud-azure.svg?branch=develop)](https://travis-ci.org/vladmunthiu/dasein-cloud-azure)
+
 dasein-cloud-azure
 ==================
 

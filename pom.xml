@@ -111,13 +111,13 @@
             <version>4.9</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
             <version>2015.09.1-SNAPSHOT</version>
             <scope>test</scope>
             <optional>false</optional>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>org.unitils</groupId>
             <artifactId>unitils-core</artifactId>
@@ -312,6 +312,7 @@
                     <excludes>
                         <exclude>**/DummyTest.java</exclude>
                     </excludes>
+                    <jvm>${env.JAVA_HOME}/bin/java</jvm>
                 </configuration>
             </plugin>
             <plugin>
