@@ -2,13 +2,13 @@ package org.dasein.cloud.azure.tests.compute.image;
 
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
-
+import static org.unitils.reflectionassert.ReflectionAssert.*;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.JAXBException;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -19,6 +19,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
@@ -28,6 +29,7 @@ import org.dasein.cloud.azure.compute.image.model.VMImageModel;
 import org.dasein.cloud.azure.compute.image.model.VMImageModel.OSDiskConfigurationModel;
 import org.dasein.cloud.azure.compute.image.model.VMImagesModel;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
+import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.ImageClass;
@@ -50,7 +52,6 @@ import mockit.*;
 public class AzureImageTest extends AzureTestsBase {
 	
 	private final String IMAGE_ID = "TESTIMAGEID";
-	private final String IMAGE_NAME = "TESTIMAGENAME";
 	
 	private final String CAPTURE_IMAGE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
 	private final String REMOVE_VM_IMAGE_URL = "%s/%s/services/vmimages/%s?comp=media";
@@ -74,7 +75,7 @@ public class AzureImageTest extends AzureTestsBase {
 	@Before
 	public void initExpectations() throws InternalException, CloudException {
         
-		String methodName = name.getMethodName();
+		final String methodName = name.getMethodName();
 
         if (methodName.startsWith("capture")) {
         	
@@ -83,15 +84,29 @@ public class AzureImageTest extends AzureTestsBase {
     			{ azureComputeServicesMock.getVirtualMachineSupport(); result = azureVirtualMachineSupportMock; }
             };
 
-	        new NonStrictExpectations() {
-	        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
-	        	{ virtualMachineMock.getProviderVirtualMachineId(); result = "TESTVMID"; }
-	        	{ virtualMachineMock.getPlatform(); result = Platform.RHEL; }
-	        	{ virtualMachineMock.getCurrentState(); result = VmState.STOPPED; }
-	        	{ virtualMachineMock.getTag("serviceName"); result = SERVICE_NAME; }
-	        	{ virtualMachineMock.getTag("deploymentName"); result = DEPLOYMENT_NAME; }
-	        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
-	        };
+            if (methodName.endsWith("NoServerFound")) {
+            	new NonStrictExpectations() {
+		        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = null; }
+		        };
+            } else {
+            	new NonStrictExpectations() {
+		        	{ azureVirtualMachineSupportMock.getVirtualMachine(anyString); result = virtualMachineMock; }
+		        	{ virtualMachineMock.getProviderVirtualMachineId(); result = "TESTVMID"; }
+		        	{ virtualMachineMock.getPlatform(); result = Platform.RHEL; }
+		        	{ virtualMachineMock.getTag("serviceName"); result = SERVICE_NAME; }
+		        	{ virtualMachineMock.getTag("deploymentName"); result = DEPLOYMENT_NAME; }
+		        	{ virtualMachineMock.getTag("roleName"); result = ROLE_NAME; }
+		        };
+            	if (methodName.endsWith("InvalidStateToImage")) {
+            		new NonStrictExpectations() {
+    		        	{ virtualMachineMock.getCurrentState(); result = VmState.RUNNING; }
+    		        };
+            	} else {
+            		new NonStrictExpectations() {
+    		        	{ virtualMachineMock.getCurrentState(); result = VmState.STOPPED; }
+    		        };
+            	}
+            }
 	        
 	        if (methodName.endsWith("TerminateServiceFailed")) {
 	        	new NonStrictExpectations() {
@@ -112,12 +127,21 @@ public class AzureImageTest extends AzureTestsBase {
 				null,
 				new Header[]{});
 
-		if (methodName.startsWith("capture")) {
+		if (methodName.startsWith("capture") && 
+				!methodName.endsWith("NoServerFound") && !methodName.endsWith("InvalidStateToImage") && 
+				!methodName.endsWith("ParsingRequestEntityFailed")) {
+			
+			final Operation.CaptureRoleAsVMImageOperation captureVMImageOperation = new Operation.CaptureRoleAsVMImageOperation();
+            captureVMImageOperation.setOsState("Generalized");
+            captureVMImageOperation.setVmImageName(IMAGE_ID);
+            captureVMImageOperation.setVmImageLabel(IMAGE_ID);
+			
 			new MockUp<CloseableHttpClient>() {
 	            @Mock(invocations = 1)
 	            public CloseableHttpResponse execute(HttpUriRequest request) {
-	        		assertPost(request,
-	        				String.format(CAPTURE_IMAGE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME));
+	        		assertPost(request, 
+	        				String.format(CAPTURE_IMAGE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME),
+	        				new Header[]{}, captureVMImageOperation);
 	            	return responseMock;
 	            }
 	        };
@@ -175,10 +199,10 @@ public class AzureImageTest extends AzureTestsBase {
         
         final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
-        ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
-        MachineImage image = support.captureImage(options);
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
         
+        ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+        MachineImage image = support.captureImage(options);
         assertNotNull("Capture image returns null image", image);
         assertEquals("Capture image returns invalid image id", IMAGE_ID, image.getProviderMachineImageId());
 	}
@@ -188,7 +212,7 @@ public class AzureImageTest extends AzureTestsBase {
 		
         final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID,ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		
 		AsynchronousTask<MachineImage> task = new AsynchronousTask<MachineImage>() {
 			@Override
@@ -200,7 +224,7 @@ public class AzureImageTest extends AzureTestsBase {
 			}
 		};
 		
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
         support.captureImageAsync(options, task);
         while (!task.isComplete()) {
         	Thread.sleep(1000L);
@@ -212,7 +236,7 @@ public class AzureImageTest extends AzureTestsBase {
 	@Test(expected = CloudException.class)
 	public void captureShouldThrowExceptionIfRetrieveImageTimeout() throws CloudException, InternalException {
 		final AzureImageSupport support = new AzureImageSupport(azureMock);
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
 		support.captureImage(options);
 	}
 	
@@ -221,9 +245,33 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		final AzureImageSupport support = new AzureImageSupport(azureMock, 
         		MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-        				MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
-		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_NAME, IMAGE_NAME);
+        				MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
 		support.captureImage(options);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void captureShouldThrowExceptionIfNoServerFound() throws CloudException, InternalException {
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
+	}
+	
+	@Test(expected = InternalException.class)
+	public void captureShouldThrowExceptionIfInvalidStateToImage() throws CloudException, InternalException {
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
+	}
+	
+	@Test(expected = InternalException.class)
+	public void captureShouldThrowExceptionIfParsingRequestEntityFailed() throws CloudException, InternalException {
+		new MockUp<AzureMethod>() {
+			@Mock
+			<T> String post(String resource, T object) throws JAXBException, CloudException, InternalException {
+				throw new JAXBException("parsing object failed");
+			}
+		};
+		ImageCreateOptions options = ImageCreateOptions.getInstance(virtualMachineMock, IMAGE_ID, IMAGE_ID);
+		new AzureOSImage(azureMock).captureImage(options);
 	}
 	
 	@Test
@@ -280,7 +328,7 @@ public class AzureImageTest extends AzureTestsBase {
 	public void isImageSharedWithPublicShouldReturnTrue() throws CloudException, InternalException {
 		AzureImageSupport support = new AzureImageSupport(azureMock, 
 				MachineImage.getInstance("--public--", REGION, IMAGE_ID, ImageClass.MACHINE, 
-						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+						MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		assertTrue("image share with public match provider owner --public-- but returns false", 
 				support.isImageSharedWithPublic(IMAGE_ID));
 	}
@@ -289,7 +337,7 @@ public class AzureImageTest extends AzureTestsBase {
 	public void isImageSharedWithPublicShouldReturnFalse() throws CloudException, InternalException {
 		AzureImageSupport support = new AzureImageSupport(azureMock, 
 				MachineImage.getInstance(ACCOUNT_NO, REGION, IMAGE_ID, ImageClass.MACHINE, 
-						MachineImageState.PENDING, IMAGE_NAME, IMAGE_NAME, Architecture.I64, Platform.RHEL));
+						MachineImageState.PENDING, IMAGE_ID, IMAGE_ID, Architecture.I64, Platform.RHEL));
 		assertFalse("image share with public match a specific owner id but return true", 
 				support.isImageSharedWithPublic(IMAGE_ID));
 	}
@@ -330,8 +378,8 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
 		MachineImage resultImage = support.getImage(IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", null, false, true);
-		assertEquals("get os image with unexpected field values", expectedImage, resultImage);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, null, false, true);
+		assertReflectionEquals("get os image with unexpected field values", expectedImage, resultImage);
 	}
 	
 	@Test
@@ -357,8 +405,8 @@ public class AzureImageTest extends AzureTestsBase {
 		
 		AzureOSImage support = new AzureOSImage(azureMock);
 		MachineImage resultImage = support.getImage(IMAGE_ID);
-		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "", "UP", false, false);
-		assertEquals("get vm image with unexpected field values", expectedImage, resultImage);
+		AzureMachineImage expectedImage = getExpectedMachineImage(ACCOUNT_NO, REGION, IMAGE_ID, Platform.UNIX, "UP", false, false);
+		assertReflectionEquals("get vm image with unexpected field values", expectedImage, resultImage);
 	}
 	
 	@Test
@@ -675,7 +723,7 @@ public class AzureImageTest extends AzureTestsBase {
 	}
 	
 	private AzureMachineImage getExpectedMachineImage(String owner, String region, String imageId, 
-			Platform platform, String software, String state, boolean isPublic, boolean osMachineImage) {
+			Platform platform, String osState, boolean isPublic, boolean osMachineImage) {
 		AzureMachineImage expectedImage = new AzureMachineImage();
 		expectedImage.setCurrentState(MachineImageState.ACTIVE);
 		expectedImage.setArchitecture(Architecture.I64);
@@ -691,13 +739,12 @@ public class AzureImageTest extends AzureTestsBase {
 		} else {
 			expectedImage.setMediaLink(String.format(VM_IMAGE_META_LINK, IMAGE_ID));
 			expectedImage.setAzureImageType("VMImage");
-			expectedImage.setTag("OSState", state);
+			expectedImage.setTag("OSState", osState);
 		}
-		expectedImage.setTags(new HashMap<String, String>());
+		expectedImage.setTag("public", Boolean.toString(isPublic));
 		expectedImage.setType(MachineImageType.VOLUME);
 		expectedImage.setImageClass(ImageClass.MACHINE);
-		expectedImage.setSoftware(software);
-		expectedImage.setTag("public", Boolean.toString(isPublic));
+		expectedImage.setSoftware("");
 		return expectedImage;
 	}
 	
