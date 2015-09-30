@@ -62,7 +62,7 @@ public class AzureAffinityGroupSupport implements AffinityGroupSupport {
     @Override
     public AffinityGroup create(@Nonnull AffinityGroupCreateOptions options) throws InternalException, CloudException {
 
-        if(options == null && options.getName() == null)
+        if(options == null || options.getName() == null)
             throw new InternalException("Cannot create AffinityGroup. Create options or affinity group name cannot be null.");
 
         CreateAffinityGroupModel createAffinityGroupModel = new CreateAffinityGroupModel();
@@ -167,7 +167,7 @@ public class AzureAffinityGroupSupport implements AffinityGroupSupport {
         if(affinityGroupId == null|| affinityGroupId.isEmpty())
             throw new InternalException("Cannot modify an affinity group: affinityGroupId cannot be null or empty");
 
-        if(options == null && options.getDescription() == null)
+        if(options == null || options.getDescription() == null)
             throw new InternalException("Cannot create AffinityGroup. Create options or affinity group description cannot be null.");
 
         UpdateAffinityGroupModel updateAffinityGroupModel = new UpdateAffinityGroupModel();
