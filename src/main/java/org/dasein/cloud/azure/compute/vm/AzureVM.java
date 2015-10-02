@@ -392,7 +392,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
                         if ( mynode.getNodeName().equalsIgnoreCase("name") && mynode.hasChildNodes() ) {
                             depName = mynode.getFirstChild().getNodeValue().trim();
-                            if (depName.equals(deploymentName)) {
+                            if (depName.equalsIgnoreCase(deploymentName)) {
                                 parseDeployment(ctx, ctx.getRegionId(), sName + ":" + deploymentName, deployment, list);
                                 if (list != null && list.size() > 0) {
                                     for(VirtualMachine vm : list) {
@@ -1384,6 +1384,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
         boolean mediaLocationFound = false;
         DataCenter dc = null;
+        AffinityGroup affinityGroupModel = null;
 
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
@@ -1413,7 +1414,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                         //get the region for this affinity group
                         String affinityGroup = property.getFirstChild().getNodeValue().trim();
                         if (affinityGroup != null && !affinityGroup.equals("")) {
-                            AffinityGroup affinityGroupModel = getProvider().getComputeServices().getAffinityGroupSupport().get(affinityGroup);
+                            affinityGroupModel = getProvider().getComputeServices().getAffinityGroupSupport().get(affinityGroup);
                             if(affinityGroupModel == null)
                                 return;
 
@@ -1484,6 +1485,9 @@ public class AzureVM extends AbstractVMSupport<Azure> {
                                 else {
                                     Collection<DataCenter> dcs = getProvider().getDataCenterServices().listDataCenters(regionId);
                                     vm.setProviderDataCenterId(dcs.iterator().next().getProviderDataCenterId());
+                                }
+                                if (affinityGroupModel != null) {
+                                    vm.setAffinityGroupId(affinityGroupModel.getAffinityGroupId());
                                 }
                             }
                         }

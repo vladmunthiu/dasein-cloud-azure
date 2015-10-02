@@ -18,7 +18,11 @@
 
 package org.dasein.cloud.azure.tests.compute.vm;
 
+import com.sun.tools.attach.*;
 import mockit.*;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.commons.collections.Predicate;
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -30,18 +34,22 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.AzureLocation;
+import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.AzureAffinityGroupSupport;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
+import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
 import org.dasein.cloud.azure.compute.vm.VMCapabilities;
 import org.dasein.cloud.azure.compute.vm.model.HostedServiceModel;
+import org.dasein.cloud.azure.compute.vm.model.HostedServicesModel;
 import org.dasein.cloud.azure.compute.vm.model.Operation;
 import org.dasein.cloud.azure.network.AzureNetworkServices;
 import org.dasein.cloud.azure.network.AzureVlanSupport;
 import org.dasein.cloud.azure.network.model.PersistentVMRoleModel;
 import org.dasein.cloud.azure.tests.AzureTestsBase;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
@@ -60,7 +68,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
+import static mockit.Deencapsulation.invoke;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -75,6 +85,7 @@ public class AzureVmTest extends AzureTestsBase {
     private static String ROLE_OPERATIONS_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roleInstances/%s/Operations";
     private static String ROLE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s";
     private static String HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL = "%s/%s/services/hostedservices/%s?embed-detail=true";
+    private static String HOSTED_SERVICES_URL = "%s/%s/services/hostedservices";
 
     @Mocked AzureComputeServices computeServiceMock;
     @Mocked AzureAffinityGroupSupport affinitySupportMock;
@@ -557,78 +568,8 @@ public class AzureVmTest extends AzureTestsBase {
         };
 
         AzureVM azureVM = new AzureVM(azureMock);
-        VirtualMachine virtualMachine = azureVM.getVirtualMachine(String.format("%s:%s:%s", SERVICE_NAME, DEPLOYMENT_NAME, VM_NAME));
-        assertVirtualMachine(hostedServiceModel, testMachineImage, virtualMachine);
-    }
-
-    private HostedServiceModel getHostedServiceModel(String affinityGroupId) {
-        HostedServiceModel hostedServiceModel = new HostedServiceModel();
-        HostedServiceModel.HostedServiceProperties hostedServiceProperties = new HostedServiceModel.HostedServiceProperties();
-        hostedServiceProperties.setAffinityGroup(affinityGroupId);
-        hostedServiceModel.setHostedServiceProperties(hostedServiceProperties);
-        HostedServiceModel.Deployment deployment = new HostedServiceModel.Deployment();
-        deployment.setName(DEPLOYMENT_NAME);
-        deployment.setPrivateId("DEPLOYMENT_PRIVATE_ID");
-        deployment.setLocked("true");
-        deployment.setUrl("http://test.com");
-        deployment.setDeploymentSlot("DEPLOYMENT_SLOT");
-
-        HostedServiceModel.RoleInstance roleInstance = new HostedServiceModel.RoleInstance();
-        roleInstance.setRoleName(VM_NAME);
-        roleInstance.setInstanceSize("ROLE_INSTANCE_SIZE");
-        roleInstance.setInstanceUpgradeDomain("ROLE_UPGRADE_DOMAIN");
-        roleInstance.setInstanceErrorCode("ROLE_INSTANCE_ERROR_CODE");
-        roleInstance.setInstanceFaultDomain("ROLE_INSTANCE_FAULT_DOMAIN");
-        roleInstance.setIpAddress("199.199.199.199");
-        HostedServiceModel.InstanceEndpoint instanceEndpoint = new HostedServiceModel.InstanceEndpoint();
-        instanceEndpoint.setVip("201.201.201.201");
-        roleInstance.setInstanceEndpoints(Arrays.asList(instanceEndpoint));
-        roleInstance.setPowerState("Started");
-        deployment.setRoleInstanceList(Arrays.asList(roleInstance));
-        deployment.setVirtualNetworkName("VLAN_NAME");
-
-        HostedServiceModel.Role role = new HostedServiceModel.Role();
-        role.setRoleName(VM_NAME);
-        HostedServiceModel.ConfigurationSet configurationSet = new HostedServiceModel.ConfigurationSet();
-        configurationSet.setSubnetNames(Arrays.asList("SUBNET_NAME"));
-        role.setConfigurationSets(Arrays.asList(configurationSet));
-        HostedServiceModel.OSVirtualHardDisk osVirtualHardDisk = new HostedServiceModel.OSVirtualHardDisk();
-        osVirtualHardDisk.setSourceImageName("DISK_SOURCE_IMAGE_NAME");
-        osVirtualHardDisk.setMediaLink("DISK_MEDIA_LINK");
-        osVirtualHardDisk.setOs("DISK_OS");
-        role.setOsVirtualHardDisk(osVirtualHardDisk);
-        deployment.setRoleList(Arrays.asList(role));
-
-        hostedServiceModel.setDeployments(Arrays.asList(deployment));
-        return hostedServiceModel;
-    }
-
-    private void assertVirtualMachine(HostedServiceModel hostedServiceModel, MachineImage testMachineImage, VirtualMachine virtualMachine) throws URISyntaxException {
-        assertEquals(Architecture.I64, virtualMachine.getArchitecture());
-        assertEquals(false, virtualMachine.isClonable());
-        assertEquals(false, virtualMachine.isImagable());
-        assertEquals(true, virtualMachine.isPersistent());
-        assertEquals(ACCOUNT_NO, virtualMachine.getProviderOwnerId());
-        assertEquals(REGION, virtualMachine.getProviderRegionId());
-        assertEquals(REGION, virtualMachine.getProviderDataCenterId());
-
-        assertEquals(String.format("%s:%s:%s", SERVICE_NAME, DEPLOYMENT_NAME, VM_NAME), virtualMachine.getProviderVirtualMachineId());
-        assertEquals(hostedServiceModel.getHostedServiceProperties().getAffinityGroup(), virtualMachine.getAffinityGroupId());
-        HostedServiceModel.Deployment deployment = hostedServiceModel.getDeployments().get(0);
-        HostedServiceModel.RoleInstance roleInstance = deployment.getRoleInstanceList().get(0);
-        HostedServiceModel.Role role = deployment.getRoleList().get(0);
-        assertEquals(roleInstance.getRoleName(), virtualMachine.getDescription());
-        assertEquals(roleInstance.getRoleName(), virtualMachine.getName());
-        assertTrue(virtualMachine.getPrivateAddresses() != null && virtualMachine.getPrivateAddresses().length == 1);
-        assertEquals(roleInstance.getIpAddress(), virtualMachine.getPrivateAddresses()[0].getIpAddress());
-        assertEquals(testMachineImage.getPlatform(), virtualMachine.getPlatform());
-        assertEquals(roleInstance.getInstanceSize(), virtualMachine.getProductId());
-        assertEquals(deployment.getRoleList().get(0).getOsVirtualHardDisk().getSourceImageName(), virtualMachine.getProviderMachineImageId());
-        assertEquals(role.getConfigurationSets().get(0).getSubnetNames().get(0) + "_PROVIDER_VLAN_ID", virtualMachine.getProviderSubnetId());
-        assertEquals("PROVIDER_VLAN_ID", virtualMachine.getProviderVlanId());
-        assertEquals(new URI(deployment.getUrl()).getHost(), virtualMachine.getPublicDnsAddress());
-        assertTrue(virtualMachine.getPublicAddresses() != null && virtualMachine.getPublicAddresses().length == 1);
-        assertEquals(roleInstance.getInstanceEndpoints().get(0).getVip(), virtualMachine.getPublicAddresses()[0].getIpAddress());
+        VirtualMachine virtualMachine = azureVM.getVirtualMachine(String.format("%s:%s:%s", SERVICE_NAME, DEPLOYMENT_NAME, DEPLOYMENT_NAME));
+        assertVirtualMachine(hostedServiceModel, testMachineImage, virtualMachine, SERVICE_NAME, DEPLOYMENT_NAME, DEPLOYMENT_NAME);
     }
 
     @Test
@@ -644,5 +585,129 @@ public class AzureVmTest extends AzureTestsBase {
     public void testGetConsoleOutput() throws CloudException, InternalException {
         AzureVM azureVM = new AzureVM(azureMock);
         assertEquals("", azureVM.getConsoleOutput("ANY_ID"));
+    }
+
+    @Test
+    public void testListVMReturnsEmptyListWhenNoAzureXml() throws CloudException, InternalException {
+        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final String expectedUrl = String.format(HOSTED_SERVICES_URL, ENDPOINT, ACCOUNT_NO);
+        new MockUp<CloseableHttpClient>() {
+            @Mock
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
+                assertGet(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2012-03-01")});
+                return getHttpResponseEmptyEntityMock;
+            }
+        };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        Iterable<VirtualMachine> virtualMachines = azureVM.listVirtualMachines();
+        Assert.assertNotNull(virtualMachines);
+        assertEquals(0, IteratorUtils.toList(virtualMachines.iterator()).size());
+    }
+
+    @Test
+    public void testListVMMakesTheCorrectNumberOfAPICalls() throws CloudException, InternalException {
+
+        ArrayList<HostedServiceModel> hostedServiceModelList = new ArrayList<HostedServiceModel>();
+        for(Integer i = 1; i < 20; i++) {
+            final HostedServiceModel hostedServiceModel = new HostedServiceModel();
+            hostedServiceModel.setServiceName(String.format("HOSTED_SERVICE_%s", i.toString()));
+            hostedServiceModel.setUrl("TEST_SERVICE_URL");
+            hostedServiceModelList.add(hostedServiceModel);
+        }
+        HostedServicesModel hostedServicesModel = new HostedServicesModel();
+        hostedServicesModel.setHostedServiceModelList(hostedServiceModelList);
+        final DaseinObjectToXmlEntity<HostedServicesModel> responseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
+
+        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+
+        final String expectedUrl = String.format(HOSTED_SERVICES_URL, ENDPOINT, ACCOUNT_NO);
+        final ArrayList<String> actualAPICallUrls = new ArrayList<String>();
+        new MockUp<CloseableHttpClient>() {
+            @Mock
+            public CloseableHttpResponse execute(HttpUriRequest request) throws IOException {
+                if(request.getURI().toString().endsWith("hostedservices")) {
+                    assertGet(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2012-03-01")});
+                    return getHttpResponseHostedServicesEntityMock;
+                } else if (request.getURI().toString().endsWith("embed-detail=true")){
+                    Assert.assertNotNull(CollectionUtils.find(Arrays.asList(request.getAllHeaders()), new Predicate() {
+                        @Override
+                        public boolean evaluate(Object object) {
+                            Header actualHeader = (Header) object;
+                            return actualHeader.getName() == "x-ms-version" && actualHeader.getValue() == "2014-05-01";
+                        }
+                    }));
+                    actualAPICallUrls.add(request.getURI().toString());
+                    return getHttpResponseEmptyEntityMock;
+                } else {
+                    Assert.fail("listVirtualMachine method makes an unexpected API call");
+                    return null;
+                }
+            }
+        };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        Iterable<VirtualMachine> virtualMachines = azureVM.listVirtualMachines();
+
+        Assert.assertNotNull(virtualMachines);
+        assertEquals(hostedServicesModel.getHostedServiceModelList().size(), actualAPICallUrls.size());
+        for (HostedServiceModel hostedServiceModel : hostedServicesModel.getHostedServiceModelList()) {
+            String expectedUrlCall = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, hostedServiceModel.getServiceName());
+            assertTrue(actualAPICallUrls.contains(expectedUrlCall));
+        }
+        assertEquals(0, IteratorUtils.toList(virtualMachines.iterator()).size());
+    }
+
+    @Test
+    public void testListVirtualMachineReturnsCorrectMachine(@Mocked final AzureOSImage imageSupportMock, @Mocked final AzureNetworkServices networkServicesMock, @Mocked final AzureVlanSupport vlanSupportMock, @Mocked final VLAN vlanMock) throws CloudException, InternalException, URISyntaxException {
+        String affinityGroupId = "TEST_AFFINITY_ID";
+        final HostedServiceModel hostedServiceModel = getHostedServiceModel(affinityGroupId);
+        hostedServiceModel.setUrl("TEST_SERVICE_URL");
+        hostedServiceModel.setServiceName(DEPLOYMENT_NAME);
+        HostedServicesModel hostedServicesModel = new HostedServicesModel();
+        hostedServicesModel.setHostedServiceModelList(new ArrayList<HostedServiceModel>(){{add(hostedServiceModel);}});
+        final DaseinObjectToXmlEntity<HostedServicesModel> hostedServicesResponseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
+        final DaseinObjectToXmlEntity<HostedServicesModel> hostedServiceResponseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
+
+        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServicesResponseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseHostedServiceEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServiceResponseEntity , new Header[]{});
+
+        final MachineImage testMachineImage = MachineImage.getInstance(ACCOUNT_NO,REGION,"DISK_SOURCE_IMAGE_NAME", ImageClass.MACHINE,MachineImageState.ACTIVE,"DISK_SOURCE_IMAGE_NAME","DISK_SOURCE_IMAGE_NAME",Architecture.I64,Platform.WINDOWS);
+        final DataCenter testDataCenter = new DataCenter(REGION, REGION_NAME, REGION, true, true);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", REGION, null);
+        new NonStrictExpectations() {
+            { azureMock.getComputeServices(); result = computeServiceMock; }
+            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
+            { computeServiceMock.getImageSupport(); result = imageSupportMock; }
+            { azureMock.getNetworkServices(); result = networkServicesMock; }
+            { networkServicesMock.getVlanSupport(); result = vlanSupportMock; }
+            { vlanSupportMock.getVlan("VLAN_NAME"); result = vlanMock; }
+            { vlanMock.getProviderVlanId(); result = "PROVIDER_VLAN_ID";}
+            { imageSupportMock.getMachineImage("DISK_SOURCE_IMAGE_NAME"); result = testMachineImage;}
+            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
+            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
+            { dataCenterServiceMock.getDataCenter(anyString); result = testDataCenter;}
+        };
+
+        new MockUp<CloseableHttpClient>() {
+            @Mock
+            public CloseableHttpResponse execute(HttpUriRequest request) throws IOException {
+                if(request.getURI().toString().endsWith("hostedservices")) {
+                    return getHttpResponseHostedServicesEntityMock;
+                } else if (request.getURI().toString().endsWith("embed-detail=true")){
+                    return getHttpResponseHostedServiceEntityMock;
+                } else {
+                    Assert.fail("listVirtualMachine method makes an unexpected API call");
+                    return null;
+                }
+            }
+        };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        Iterable<VirtualMachine> virtualMachines = azureVM.listVirtualMachines();
+        Assert.assertNotNull(virtualMachines);
+        Assert.assertEquals(1, IteratorUtils.toList(virtualMachines.iterator()).size());
+        assertVirtualMachine(hostedServiceModel, testMachineImage, (VirtualMachine)IteratorUtils.toList(virtualMachines.iterator()).get(0), DEPLOYMENT_NAME, DEPLOYMENT_NAME, DEPLOYMENT_NAME );
     }
 }
