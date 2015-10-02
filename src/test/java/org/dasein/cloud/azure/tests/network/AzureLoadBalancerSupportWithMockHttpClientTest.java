@@ -81,7 +81,7 @@ import static org.junit.Assert.assertNull;
  * @author Jeffrey Yan
  * @since 2015.09.1
  */
-public class AzureLoadBalancerSupportTestWithMockHttpClient extends AzureTestsBase {
+public class AzureLoadBalancerSupportWithMockHttpClientTest extends AzureTestsBase {
 
     private final String LB_NAME = "lb_name";
     private final String LB_DESCRIPTION = "lb_description";
