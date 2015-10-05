@@ -18,29 +18,32 @@
 
 package org.dasein.cloud.azure.tests.compute.vm;
 
-import com.sun.tools.attach.*;
 import mockit.*;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.collections.Predicate;
 import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HttpContext;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.AzureLocation;
-import org.dasein.cloud.azure.AzureMethod;
 import org.dasein.cloud.azure.compute.AzureAffinityGroupSupport;
 import org.dasein.cloud.azure.compute.AzureComputeServices;
-import org.dasein.cloud.azure.compute.image.AzureMachineImage;
 import org.dasein.cloud.azure.compute.image.AzureOSImage;
 import org.dasein.cloud.azure.compute.vm.AzureVM;
 import org.dasein.cloud.azure.compute.vm.VMCapabilities;
+import org.dasein.cloud.azure.compute.vm.model.DeploymentModel;
 import org.dasein.cloud.azure.compute.vm.model.HostedServiceModel;
 import org.dasein.cloud.azure.compute.vm.model.HostedServicesModel;
 import org.dasein.cloud.azure.compute.vm.model.Operation;
@@ -52,23 +55,20 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.network.VLAN;
+import org.dasein.cloud.util.requester.DaseinResponseHandler;
 import org.dasein.cloud.util.requester.entities.DaseinObjectToXmlEntity;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.bind.JAXBException;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
 import static mockit.Deencapsulation.invoke;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
@@ -86,10 +86,17 @@ public class AzureVmTest extends AzureTestsBase {
     private static String ROLE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s";
     private static String HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL = "%s/%s/services/hostedservices/%s?embed-detail=true";
     private static String HOSTED_SERVICES_URL = "%s/%s/services/hostedservices";
+    private static String HOSTED_SERVICE_URL = "%s/%s/services/hostedservices/%s";
+    private static String DELETE_ROLE_URL = "%s/%s/services/hostedservices/%s/deployments/%s/roles/%s?comp=media";
+    private static String DELETE_DEPLOYMENT_URL = "%s/%s/services/hostedservices/%s/deployments/%s?comp=media";
+    private static String DEPLOYMENT_URL = "%s/%s/services/hostedservices/%s/deployments/%s";
 
-    @Mocked AzureComputeServices computeServiceMock;
-    @Mocked AzureAffinityGroupSupport affinitySupportMock;
-    @Mocked AzureLocation dataCenterServiceMock;
+    @Mocked
+    AzureComputeServices computeServiceMock;
+    @Mocked
+    AzureAffinityGroupSupport affinitySupportMock;
+    @Mocked
+    AzureLocation dataCenterServiceMock;
 
     final String REGION_NAME = "TEST_REGION_NAME";
 
@@ -103,7 +110,7 @@ public class AzureVmTest extends AzureTestsBase {
     }
 
     @Test
-    public void startShouldPostCorrectRequest()throws CloudException, InternalException{
+    public void startShouldPostCorrectRequest() throws CloudException, InternalException {
         final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(ROLE_OPERATIONS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
@@ -167,8 +174,8 @@ public class AzureVmTest extends AzureTestsBase {
         final PersistentVMRoleModel persistentVMRoleModel = getPersistentVMRoleModel();
 
         DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(persistentVMRoleModel);
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity , new Header[]{});
-        final CloseableHttpResponse putHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[]{});
+        final CloseableHttpResponse putHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(ROLE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
         final VirtualMachine virtualMachine = getTestVirtualMachine();
@@ -177,7 +184,7 @@ public class AzureVmTest extends AzureTestsBase {
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
-                if(inv.getInvocationCount() == 1) {
+                if (inv.getInvocationCount() == 1) {
                     assertGet(request, expectedUrl);
                     return getHttpResponseMock;
                 } else {
@@ -200,7 +207,7 @@ public class AzureVmTest extends AzureTestsBase {
         persistentVMRoleModel.setRoleSize("Small");
 
         DaseinObjectToXmlEntity<PersistentVMRoleModel> daseinEntity = new DaseinObjectToXmlEntity<PersistentVMRoleModel>(persistentVMRoleModel);
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), daseinEntity, new Header[]{});
         final String expectedUrl = String.format(ROLE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
 
         final VirtualMachine virtualMachine = getTestVirtualMachine();
@@ -210,8 +217,8 @@ public class AzureVmTest extends AzureTestsBase {
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) throws IOException {
-                    assertGet(request, expectedUrl);
-                    return getHttpResponseMock;
+                assertGet(request, expectedUrl);
+                return getHttpResponseMock;
             }
         };
 
@@ -224,14 +231,17 @@ public class AzureVmTest extends AzureTestsBase {
     @Test(expected = OperationNotSupportedException.class)
     public void testCloneNotSupported() throws CloudException, InternalException {
         AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock);
-        azureVMSupport.clone("EXPECTED","EXPECTED", "EXPECTED", "EXPECTED", false, "EXPECTED");
+        azureVMSupport.clone("EXPECTED", "EXPECTED", "EXPECTED", "EXPECTED", false, "EXPECTED");
     }
 
     @Test
     public void testGetProductReturnsNullWhenThereAreNoProducts() throws CloudException, InternalException {
         final AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock);
-        new Expectations(AzureVMSupport.class){
-            {azureVMSupport.listProducts(null, null); result = new ArrayList<VirtualMachineProduct>();}
+        new Expectations(AzureVMSupport.class) {
+            {
+                azureVMSupport.listProducts(null, null);
+                result = new ArrayList<VirtualMachineProduct>();
+            }
         };
 
         Assert.assertNull(azureVMSupport.getProduct("ANY_PRODUCT"));
@@ -242,12 +252,15 @@ public class AzureVmTest extends AzureTestsBase {
         final AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock);
 
         final ArrayList<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        for(final String providerId : Arrays.asList("FISRT", "SECOND", "THIRD")) {
+        for (final String providerId : Arrays.asList("FISRT", "SECOND", "THIRD")) {
             products.add(getTestVirtualMachineProducts(providerId));
         }
 
-        new Expectations(AzureVMSupport.class){
-            {azureVMSupport.listProducts(null, null); result = products;}
+        new Expectations(AzureVMSupport.class) {
+            {
+                azureVMSupport.listProducts(null, null);
+                result = products;
+            }
         };
 
         Assert.assertNull(azureVMSupport.getProduct("ANY_PRODUCT"));
@@ -258,15 +271,18 @@ public class AzureVmTest extends AzureTestsBase {
         final AzureVMSupport azureVMSupport = new AzureVMSupport(azureMock);
 
         final ArrayList<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        for(final String providerId : Arrays.asList("FISRT", "SECOND", "THIRD")) {
+        for (final String providerId : Arrays.asList("FISRT", "SECOND", "THIRD")) {
             products.add(getTestVirtualMachineProducts(providerId));
         }
 
         VirtualMachineProduct expectedProduct = getTestVirtualMachineProducts("ANY_PRODUCT");
         products.add(expectedProduct);
 
-        new Expectations(AzureVMSupport.class){
-            {azureVMSupport.listProducts(null, null); result = products;}
+        new Expectations(AzureVMSupport.class) {
+            {
+                azureVMSupport.listProducts(null, null);
+                result = products;
+            }
         };
 
         VirtualMachineProduct actualProduct = azureVMSupport.getProduct("ANY_PRODUCT");
@@ -283,7 +299,7 @@ public class AzureVmTest extends AzureTestsBase {
         prd.setCpuCount(100);
         prd.setRootVolumeSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
         prd.setRamSize(new Storage<Megabyte>(512, Storage.MEGABYTE));
-        prd.setStandardHourlyRate((float)50.5);
+        prd.setStandardHourlyRate((float) 50.5);
         return prd;
     }
 
@@ -320,7 +336,7 @@ public class AzureVmTest extends AzureTestsBase {
     @Test
     public void testGetVirtualMachineGetProperServiceNameFromIdWith3Parts() throws CloudException, InternalException {
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -338,7 +354,7 @@ public class AzureVmTest extends AzureTestsBase {
     @Test
     public void testGetVirtualMachineGetProperServiceNameFromIdWith2Parts() throws CloudException, InternalException {
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -356,7 +372,7 @@ public class AzureVmTest extends AzureTestsBase {
     @Test
     public void testGetVirtualMachineGetProperServiceNameFromIdWith1Part() throws CloudException, InternalException {
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -379,7 +395,7 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServiceModel.setHostedServiceProperties(hostedServiceProperties);
 
         DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -404,13 +420,24 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServiceModel.setHostedServiceProperties(hostedServiceProperties);
 
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { affinitySupportMock.get(anyString); result = null;}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = null;
+            }
         };
 
         DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -434,17 +461,36 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServiceProperties.setAffinityGroup(affinityGroupId);
         hostedServiceModel.setHostedServiceProperties(hostedServiceProperties);
 
-        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", "WRONG_DATACENTER", null);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId, "AG_NAME", "AG_DESCRIPTION", "WRONG_DATACENTER", null);
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
-            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
-            { dataCenterServiceMock.getDataCenter("WRONG_DATACENTER"); result = new DataCenter(REGION, REGION_NAME, "WRONG_REGION", true, true);}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = testAffinityGroup;
+            }
+
+            {
+                azureMock.getDataCenterServices();
+                result = dataCenterServiceMock;
+            }
+
+            {
+                dataCenterServiceMock.getDataCenter("WRONG_DATACENTER");
+                result = new DataCenter(REGION, REGION_NAME, "WRONG_REGION", true, true);
+            }
         };
 
         final DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -468,18 +514,37 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServiceProperties.setAffinityGroup(affinityGroupId);
         hostedServiceModel.setHostedServiceProperties(hostedServiceProperties);
 
-        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", REGION, null);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId, "AG_NAME", "AG_DESCRIPTION", REGION, null);
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
-            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
-            { dataCenterServiceMock.getDataCenter(anyString); result = new DataCenter(REGION, REGION_NAME, REGION, true, true);}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = testAffinityGroup;
+            }
+
+            {
+                azureMock.getDataCenterServices();
+                result = dataCenterServiceMock;
+            }
+
+            {
+                dataCenterServiceMock.getDataCenter(anyString);
+                result = new DataCenter(REGION, REGION_NAME, REGION, true, true);
+            }
         };
 
         final DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -506,18 +571,37 @@ public class AzureVmTest extends AzureTestsBase {
         deployment.setName("WRONG_DEPLOYMENT_NAME");
         hostedServiceModel.setDeployments(Arrays.asList(deployment));
 
-        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", REGION, null);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId, "AG_NAME", "AG_DESCRIPTION", REGION, null);
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
-            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
-            { dataCenterServiceMock.getDataCenter(anyString); result = new DataCenter(REGION, REGION_NAME, REGION, true, true);}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = testAffinityGroup;
+            }
+
+            {
+                azureMock.getDataCenterServices();
+                result = dataCenterServiceMock;
+            }
+
+            {
+                dataCenterServiceMock.getDataCenter(anyString);
+                result = new DataCenter(REGION, REGION_NAME, REGION, true, true);
+            }
         };
 
         final DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -538,26 +622,69 @@ public class AzureVmTest extends AzureTestsBase {
 
         HostedServiceModel hostedServiceModel = getHostedServiceModel(affinityGroupId);
 
-        final MachineImage testMachineImage = MachineImage.getInstance(ACCOUNT_NO,REGION,"DISK_SOURCE_IMAGE_NAME", ImageClass.MACHINE,MachineImageState.ACTIVE,"DISK_SOURCE_IMAGE_NAME","DISK_SOURCE_IMAGE_NAME",Architecture.I64,Platform.WINDOWS);
+        final MachineImage testMachineImage = MachineImage.getInstance(ACCOUNT_NO, REGION, "DISK_SOURCE_IMAGE_NAME", ImageClass.MACHINE, MachineImageState.ACTIVE, "DISK_SOURCE_IMAGE_NAME", "DISK_SOURCE_IMAGE_NAME", Architecture.I64, Platform.WINDOWS);
         final DataCenter testDataCenter = new DataCenter(REGION, REGION_NAME, REGION, true, true);
-        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", REGION, null);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId, "AG_NAME", "AG_DESCRIPTION", REGION, null);
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { computeServiceMock.getImageSupport(); result = imageSupportMock; }
-            { azureMock.getNetworkServices(); result = networkServicesMock; }
-            { networkServicesMock.getVlanSupport(); result = vlanSupportMock; }
-            { vlanSupportMock.getVlan("VLAN_NAME"); result = vlanMock; }
-            { vlanMock.getProviderVlanId(); result = "PROVIDER_VLAN_ID";}
-            { imageSupportMock.getMachineImage("DISK_SOURCE_IMAGE_NAME"); result = testMachineImage;}
-            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
-            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
-            { dataCenterServiceMock.getDataCenter(anyString); result = testDataCenter;}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                computeServiceMock.getImageSupport();
+                result = imageSupportMock;
+            }
+
+            {
+                azureMock.getNetworkServices();
+                result = networkServicesMock;
+            }
+
+            {
+                networkServicesMock.getVlanSupport();
+                result = vlanSupportMock;
+            }
+
+            {
+                vlanSupportMock.getVlan("VLAN_NAME");
+                result = vlanMock;
+            }
+
+            {
+                vlanMock.getProviderVlanId();
+                result = "PROVIDER_VLAN_ID";
+            }
+
+            {
+                imageSupportMock.getMachineImage("DISK_SOURCE_IMAGE_NAME");
+                result = testMachineImage;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = testAffinityGroup;
+            }
+
+            {
+                azureMock.getDataCenterServices();
+                result = dataCenterServiceMock;
+            }
+
+            {
+                dataCenterServiceMock.getDataCenter(anyString);
+                result = testDataCenter;
+            }
         };
 
         final DaseinObjectToXmlEntity<HostedServiceModel> responseEntity = new DaseinObjectToXmlEntity<HostedServiceModel>(hostedServiceModel);
 
-        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_SERVICE_EMBEDED_DETAILS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
         new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
@@ -589,7 +716,7 @@ public class AzureVmTest extends AzureTestsBase {
 
     @Test
     public void testListVMReturnsEmptyListWhenNoAzureXml() throws CloudException, InternalException {
-        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
         final String expectedUrl = String.format(HOSTED_SERVICES_URL, ENDPOINT, ACCOUNT_NO);
         new MockUp<CloseableHttpClient>() {
             @Mock
@@ -609,7 +736,7 @@ public class AzureVmTest extends AzureTestsBase {
     public void testListVMMakesTheCorrectNumberOfAPICalls() throws CloudException, InternalException {
 
         ArrayList<HostedServiceModel> hostedServiceModelList = new ArrayList<HostedServiceModel>();
-        for(Integer i = 1; i < 20; i++) {
+        for (Integer i = 1; i < 20; i++) {
             final HostedServiceModel hostedServiceModel = new HostedServiceModel();
             hostedServiceModel.setServiceName(String.format("HOSTED_SERVICE_%s", i.toString()));
             hostedServiceModel.setUrl("TEST_SERVICE_URL");
@@ -619,18 +746,18 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServicesModel.setHostedServiceModelList(hostedServiceModelList);
         final DaseinObjectToXmlEntity<HostedServicesModel> responseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
 
-        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity , new Header[]{});
-        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null , new Header[]{});
+        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), responseEntity, new Header[]{});
+        final CloseableHttpResponse getHttpResponseEmptyEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
 
         final String expectedUrl = String.format(HOSTED_SERVICES_URL, ENDPOINT, ACCOUNT_NO);
         final ArrayList<String> actualAPICallUrls = new ArrayList<String>();
         new MockUp<CloseableHttpClient>() {
             @Mock
             public CloseableHttpResponse execute(HttpUriRequest request) throws IOException {
-                if(request.getURI().toString().endsWith("hostedservices")) {
+                if (request.getURI().toString().endsWith("hostedservices")) {
                     assertGet(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2012-03-01")});
                     return getHttpResponseHostedServicesEntityMock;
-                } else if (request.getURI().toString().endsWith("embed-detail=true")){
+                } else if (request.getURI().toString().endsWith("embed-detail=true")) {
                     Assert.assertNotNull(CollectionUtils.find(Arrays.asList(request.getAllHeaders()), new Predicate() {
                         @Override
                         public boolean evaluate(Object object) {
@@ -666,36 +793,81 @@ public class AzureVmTest extends AzureTestsBase {
         hostedServiceModel.setUrl("TEST_SERVICE_URL");
         hostedServiceModel.setServiceName(DEPLOYMENT_NAME);
         HostedServicesModel hostedServicesModel = new HostedServicesModel();
-        hostedServicesModel.setHostedServiceModelList(new ArrayList<HostedServiceModel>(){{add(hostedServiceModel);}});
+        hostedServicesModel.setHostedServiceModelList(new ArrayList<HostedServiceModel>() {{
+            add(hostedServiceModel);
+        }});
         final DaseinObjectToXmlEntity<HostedServicesModel> hostedServicesResponseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
         final DaseinObjectToXmlEntity<HostedServicesModel> hostedServiceResponseEntity = new DaseinObjectToXmlEntity<HostedServicesModel>(hostedServicesModel);
 
-        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServicesResponseEntity , new Header[]{});
-        final CloseableHttpResponse getHttpResponseHostedServiceEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServiceResponseEntity , new Header[]{});
+        final CloseableHttpResponse getHttpResponseHostedServicesEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServicesResponseEntity, new Header[]{});
+        final CloseableHttpResponse getHttpResponseHostedServiceEntityMock = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), hostedServiceResponseEntity, new Header[]{});
 
-        final MachineImage testMachineImage = MachineImage.getInstance(ACCOUNT_NO,REGION,"DISK_SOURCE_IMAGE_NAME", ImageClass.MACHINE,MachineImageState.ACTIVE,"DISK_SOURCE_IMAGE_NAME","DISK_SOURCE_IMAGE_NAME",Architecture.I64,Platform.WINDOWS);
+        final MachineImage testMachineImage = MachineImage.getInstance(ACCOUNT_NO, REGION, "DISK_SOURCE_IMAGE_NAME", ImageClass.MACHINE, MachineImageState.ACTIVE, "DISK_SOURCE_IMAGE_NAME", "DISK_SOURCE_IMAGE_NAME", Architecture.I64, Platform.WINDOWS);
         final DataCenter testDataCenter = new DataCenter(REGION, REGION_NAME, REGION, true, true);
-        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId,"AG_NAME", "AG_DESCRIPTION", REGION, null);
+        final AffinityGroup testAffinityGroup = AffinityGroup.getInstance(affinityGroupId, "AG_NAME", "AG_DESCRIPTION", REGION, null);
         new NonStrictExpectations() {
-            { azureMock.getComputeServices(); result = computeServiceMock; }
-            { computeServiceMock.getAffinityGroupSupport(); result = affinitySupportMock; }
-            { computeServiceMock.getImageSupport(); result = imageSupportMock; }
-            { azureMock.getNetworkServices(); result = networkServicesMock; }
-            { networkServicesMock.getVlanSupport(); result = vlanSupportMock; }
-            { vlanSupportMock.getVlan("VLAN_NAME"); result = vlanMock; }
-            { vlanMock.getProviderVlanId(); result = "PROVIDER_VLAN_ID";}
-            { imageSupportMock.getMachineImage("DISK_SOURCE_IMAGE_NAME"); result = testMachineImage;}
-            { affinitySupportMock.get(anyString); result = testAffinityGroup;}
-            { azureMock.getDataCenterServices(); result = dataCenterServiceMock; }
-            { dataCenterServiceMock.getDataCenter(anyString); result = testDataCenter;}
+            {
+                azureMock.getComputeServices();
+                result = computeServiceMock;
+            }
+
+            {
+                computeServiceMock.getAffinityGroupSupport();
+                result = affinitySupportMock;
+            }
+
+            {
+                computeServiceMock.getImageSupport();
+                result = imageSupportMock;
+            }
+
+            {
+                azureMock.getNetworkServices();
+                result = networkServicesMock;
+            }
+
+            {
+                networkServicesMock.getVlanSupport();
+                result = vlanSupportMock;
+            }
+
+            {
+                vlanSupportMock.getVlan("VLAN_NAME");
+                result = vlanMock;
+            }
+
+            {
+                vlanMock.getProviderVlanId();
+                result = "PROVIDER_VLAN_ID";
+            }
+
+            {
+                imageSupportMock.getMachineImage("DISK_SOURCE_IMAGE_NAME");
+                result = testMachineImage;
+            }
+
+            {
+                affinitySupportMock.get(anyString);
+                result = testAffinityGroup;
+            }
+
+            {
+                azureMock.getDataCenterServices();
+                result = dataCenterServiceMock;
+            }
+
+            {
+                dataCenterServiceMock.getDataCenter(anyString);
+                result = testDataCenter;
+            }
         };
 
         new MockUp<CloseableHttpClient>() {
             @Mock
             public CloseableHttpResponse execute(HttpUriRequest request) throws IOException {
-                if(request.getURI().toString().endsWith("hostedservices")) {
+                if (request.getURI().toString().endsWith("hostedservices")) {
                     return getHttpResponseHostedServicesEntityMock;
-                } else if (request.getURI().toString().endsWith("embed-detail=true")){
+                } else if (request.getURI().toString().endsWith("embed-detail=true")) {
                     return getHttpResponseHostedServiceEntityMock;
                 } else {
                     Assert.fail("listVirtualMachine method makes an unexpected API call");
@@ -708,6 +880,364 @@ public class AzureVmTest extends AzureTestsBase {
         Iterable<VirtualMachine> virtualMachines = azureVM.listVirtualMachines();
         Assert.assertNotNull(virtualMachines);
         Assert.assertEquals(1, IteratorUtils.toList(virtualMachines.iterator()).size());
-        assertVirtualMachine(hostedServiceModel, testMachineImage, (VirtualMachine)IteratorUtils.toList(virtualMachines.iterator()).get(0), DEPLOYMENT_NAME, DEPLOYMENT_NAME, DEPLOYMENT_NAME );
+        assertVirtualMachine(hostedServiceModel, testMachineImage, (VirtualMachine) IteratorUtils.toList(virtualMachines.iterator()).get(0), DEPLOYMENT_NAME, DEPLOYMENT_NAME, DEPLOYMENT_NAME);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testRebootThrowsExceptionForNullVmId() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+        azureVM.reboot(null);
+    }
+
+    @Test(expected = CloudException.class)
+    public void testRebootThrowsCloudExceptionWhenVmIdInvalid() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = null;
+            }
+        };
+        azureVM.reboot(VM_ID);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testRebootShouldThrowExceptionIfDeserializationFails() throws CloudException, InternalException {
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) throws JAXBException {
+                throw new JAXBException("Deserialization failed");
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.reboot(VM_ID);
+    }
+
+    @Test()
+    public void testRebootCorrectPost() throws CloudException, InternalException {
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
+        final String expectedUrl = String.format(ROLE_OPERATIONS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                assertPost(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-02-01")}, new Operation.RestartRoleOperation());
+                return mockedHttpResponse;
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.reboot(VM_ID);
+    }
+
+    @Test
+    public void testResumeStartsTheVM() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.start(VM_ID); times = 1;}
+        };
+        azureVM.resume(VM_ID);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testStopThrowsExceptionWhenNullVmId() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+        azureVM.stop(null, true);
+    }
+
+    @Test(expected = CloudException.class)
+    public void testStopThrowsCloudExceptionWhenVmIdInvalid() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = null;
+            }
+        };
+        azureVM.stop(VM_ID, true);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testStopShouldThrowExceptionIfDeserializationFails() throws CloudException, InternalException {
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) throws JAXBException {
+                throw new JAXBException("Deserialization failed");
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.stop(VM_ID, true);
+    }
+
+    @Test()
+    public void testStopCorrectPost() throws CloudException, InternalException {
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
+        final String expectedUrl = String.format(ROLE_OPERATIONS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+
+        final Operation.ShutdownRoleOperation shutdownRoleOperation = new Operation.ShutdownRoleOperation();
+        shutdownRoleOperation.setPostShutdownAction("Stopped");
+
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                assertPost(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-02-01")}, shutdownRoleOperation);
+                return mockedHttpResponse;
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.stop(VM_ID, true);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testSuspendThrowsExceptionWhenNullVmId() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+        azureVM.suspend(null);
+    }
+
+    @Test(expected = CloudException.class)
+    public void testSuspendThrowsCloudExceptionWhenVmIdInvalid() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = null;
+            }
+        };
+        azureVM.suspend(VM_ID);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testSuspendShouldThrowExceptionIfDeserializationFails() throws CloudException, InternalException {
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) throws JAXBException {
+                throw new JAXBException("Deserialization failed");
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.suspend(VM_ID);
+    }
+
+    @Test()
+    public void testSuspendCorrectPost() throws CloudException, InternalException {
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
+        final String expectedUrl = String.format(ROLE_OPERATIONS_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+
+        final Operation.ShutdownRoleOperation shutdownRoleOperation = new Operation.ShutdownRoleOperation();
+        shutdownRoleOperation.setPostShutdownAction("StoppedDeallocated");
+
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                assertPost(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-02-01")}, shutdownRoleOperation);
+                return mockedHttpResponse;
+            }
+        };
+
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            {
+                azureVM.getVirtualMachine(VM_ID);
+                result = getTestVirtualMachine();
+            }
+        };
+        azureVM.suspend(VM_ID);
+    }
+
+    @Test(expected = InternalException.class)
+    public void testTerminateThrowsExceptionWhenNullVmId() throws CloudException, InternalException {
+        AzureVM azureVM = new AzureVM(azureMock);
+        azureVM.terminate(null, "TEST_EXPLANATION");
+    }
+
+    @Test
+    public void testTerminateDeletesJustVmRole() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            { invoke(azureVM, "waitForVMTerminableState", VM_ID); times = 1;}
+            { invoke(azureVM, "waitForVMTerminated", VM_ID); times = 1;}
+            { invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME); result = false; times = 1;}
+        };
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
+        final String expectedUrl = String.format(DELETE_ROLE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+                assertDelete(request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2013-08-01")});
+                return mockedHttpResponse;
+            }
+        };
+
+        azureVM.terminate(VM_ID, "TEST_EXPLANATION");
+    }
+
+    @Test
+    public void testTerminateDeletesDeploymentAndService() throws CloudException, InternalException {
+        final AzureVM azureVM = new AzureVM(azureMock);
+        new Expectations(AzureVM.class) {
+            { invoke(azureVM, "waitForVMTerminableState", VM_ID); times = 1;}
+            { invoke(azureVM, "waitForVMTerminated", VM_ID); times = 1;}
+            { invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME); result = true; times = 1;}
+        };
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), null, new Header[]{});
+        final String expectedDeleteDeploymentUrl = String.format(DELETE_DEPLOYMENT_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME, DEPLOYMENT_NAME);
+        final String expectedDeleteServiceUrl = String.format(HOSTED_SERVICE_URL, ENDPOINT, ACCOUNT_NO, SERVICE_NAME);
+        new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 2)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+                if(inv.getInvocationCount() == 1) {
+                    assertDelete(request, expectedDeleteDeploymentUrl, new Header[]{new BasicHeader("x-ms-version", "2013-08-01")});
+                    return mockedHttpResponse;
+                } else {
+                    assertDelete(request, expectedDeleteServiceUrl, new Header[]{new BasicHeader("x-ms-version", "2013-08-01")});
+                    return mockedHttpResponse;
+                }
+            }
+        };
+
+        azureVM.terminate(VM_ID, "TEST_EXPLANATION");
+    }
+
+    @Test
+    public void testCanDeleteDeploymentReturnsFalseWhenDeploymentExists(@Mocked final HttpClientBuilder httpClientBuilderMock) throws CloudException {
+        final DeploymentModel responseDeploymentModel = new DeploymentModel();
+        ArrayList<DeploymentModel.RoleModel> roles = new ArrayList<DeploymentModel.RoleModel>();
+        for (Integer i =1; i <3; i++){
+            DeploymentModel.RoleModel role = new DeploymentModel.RoleModel();
+            role.setRoleName(String.format("SOME_NAME_%s", i));
+            roles.add(role);
+        }
+        responseDeploymentModel.setRoles(roles);
+
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), new DaseinObjectToXmlEntity<DeploymentModel>(responseDeploymentModel), new Header[]{});
+        final String expectedUrl = String.format(DEPLOYMENT_URL, ENDPOINT, ACCOUNT_NO,SERVICE_NAME, DEPLOYMENT_NAME);
+        final CloseableHttpClient closeableHttpClient = new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            CloseableHttpResponse doExecute(HttpHost target, HttpRequest request, HttpContext context) throws IOException, ClientProtocolException {
+                assertGet((HttpUriRequest)request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-05-01")});
+                return mockedHttpResponse;
+            }
+
+        }.getMockInstance();
+        new NonStrictExpectations(){
+            { azureMock.getAzureClientBuilder(); result = httpClientBuilderMock; }
+            { httpClientBuilderMock.build(); result = closeableHttpClient; } };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        boolean actualReturnValue = invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        Assert.assertFalse(actualReturnValue);
+    }
+
+    @Test
+    public void testCanDeleteDeploymentReturnsTrueWhenNoRoles(@Mocked final HttpClientBuilder httpClientBuilderMock) throws CloudException {
+        final DeploymentModel responseDeploymentModel = new DeploymentModel();
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), new DaseinObjectToXmlEntity<DeploymentModel>(responseDeploymentModel), new Header[]{});
+        final String expectedUrl = String.format(DEPLOYMENT_URL, ENDPOINT, ACCOUNT_NO,SERVICE_NAME, DEPLOYMENT_NAME);
+        final CloseableHttpClient closeableHttpClient = new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            CloseableHttpResponse doExecute(HttpHost target, HttpRequest request, HttpContext context) throws IOException, ClientProtocolException {
+                assertGet((HttpUriRequest)request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-05-01")});
+                return mockedHttpResponse;
+            }
+
+        }.getMockInstance();
+        new NonStrictExpectations(){
+            { azureMock.getAzureClientBuilder(); result = httpClientBuilderMock; }
+            { httpClientBuilderMock.build(); result = closeableHttpClient; } };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        boolean actualReturnValue = invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        Assert.assertTrue(actualReturnValue);
+    }
+
+    @Test
+    public void testCanDeleteDeploymentReturnsTrueWhenTheCorrectRoleExists(@Mocked final HttpClientBuilder httpClientBuilderMock) throws CloudException {
+        final DeploymentModel responseDeploymentModel = new DeploymentModel();
+        final DeploymentModel.RoleModel role = new DeploymentModel.RoleModel();
+        role.setRoleName(ROLE_NAME);
+        responseDeploymentModel.setRoles(new ArrayList<DeploymentModel.RoleModel>(){{add(role);}});
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), new DaseinObjectToXmlEntity<DeploymentModel>(responseDeploymentModel), new Header[]{});
+        final String expectedUrl = String.format(DEPLOYMENT_URL, ENDPOINT, ACCOUNT_NO,SERVICE_NAME, DEPLOYMENT_NAME);
+        final CloseableHttpClient closeableHttpClient = new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            CloseableHttpResponse doExecute(HttpHost target, HttpRequest request, HttpContext context) throws IOException, ClientProtocolException {
+                assertGet((HttpUriRequest)request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-05-01")});
+                return mockedHttpResponse;
+            }
+
+        }.getMockInstance();
+        new NonStrictExpectations(){
+            { azureMock.getAzureClientBuilder(); result = httpClientBuilderMock; }
+            { httpClientBuilderMock.build(); result = closeableHttpClient; } };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        boolean actualReturnValue = invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        Assert.assertTrue(actualReturnValue);
+    }
+
+    @Test
+    public void testCanDeleteDeploymentReturnsFalseWhenIncorrectRoleExists(@Mocked final HttpClientBuilder httpClientBuilderMock) throws CloudException {
+        final DeploymentModel responseDeploymentModel = new DeploymentModel();
+        final DeploymentModel.RoleModel role = new DeploymentModel.RoleModel();
+        role.setRoleName("SOME_ROLE");
+        responseDeploymentModel.setRoles(new ArrayList<DeploymentModel.RoleModel>(){{add(role);}});
+
+        final CloseableHttpResponse mockedHttpResponse = getHttpResponseMock(getStatusLineMock(HttpServletResponse.SC_OK), new DaseinObjectToXmlEntity<DeploymentModel>(responseDeploymentModel), new Header[]{});
+        final String expectedUrl = String.format(DEPLOYMENT_URL, ENDPOINT, ACCOUNT_NO,SERVICE_NAME, DEPLOYMENT_NAME);
+        final CloseableHttpClient closeableHttpClient = new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            CloseableHttpResponse doExecute(HttpHost target, HttpRequest request, HttpContext context) throws IOException, ClientProtocolException {
+                assertGet((HttpUriRequest)request, expectedUrl, new Header[]{new BasicHeader("x-ms-version", "2014-05-01")});
+                return mockedHttpResponse;
+            }
+
+        }.getMockInstance();
+        new NonStrictExpectations(){
+            { azureMock.getAzureClientBuilder(); result = httpClientBuilderMock; }
+            { httpClientBuilderMock.build(); result = closeableHttpClient; } };
+
+        AzureVM azureVM = new AzureVM(azureMock);
+        boolean actualReturnValue = invoke(azureVM, "canDeleteDeployment", SERVICE_NAME, DEPLOYMENT_NAME, ROLE_NAME);
+        Assert.assertFalse(actualReturnValue);
     }
 }
