@@ -3,17 +3,22 @@ package org.dasein.cloud.azure.tests.storage;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
+
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TimeZone;
+
 import javax.servlet.http.HttpServletResponse;
+
+import junit.framework.AssertionFailedError;
+
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -41,10 +46,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
-import mockit.Mocked;
 import mockit.NonStrictExpectations;
 
 public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
@@ -64,17 +69,14 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	private final String BUCKET_ID = "TESTBUCKET";
 	private final String OBJECT_ID = "TESTOBJECT";
 	private final String STORAGE_SERVICE = "TESTSTORAGESERVICE";
-	
-	@Mocked
-	FileInputStream mockFileInputStream;
-	@Mocked
-	SimpleDateFormat format;
-	
+
 	@Rule
     public final TestName name = new TestName();
 	
+	private DateFormat format;
+	
 	@Before
-	public void initialize() throws CloudException, InternalException {
+	public void initialize() throws CloudException, InternalException, IOException {
 		
 		new NonStrictExpectations() {
 			{ azureMock.getStorageEndpoint(); result = ENDPOINT; }
@@ -90,6 +92,9 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 				{ azureMock.release(); }
 			};
 		}
+		
+		format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
+		format.setTimeZone(TimeZone.getTimeZone("GMT"));
 	}
 	
 	@Test
@@ -193,37 +198,21 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void uploadShouldReturnCorrectResult() throws CloudException, InternalException, IOException {
+	public void uploadShouldReturnCorrectResult() throws CloudException, InternalException, IOException, AssertionFailedError, ParseException {
 		
-		new NonStrictExpectations() {
-			{ mockFileInputStream.available(); result = FILE_SIZE; }
-			{ format.setTimeZone((TimeZone) any); }
-			{ format.format((Date) any); result = "Fri, 25 Sep 2015 11:46:59 CST"; }
-		};
+		File tempFile = File.createTempFile("smallTempFile", ".tmp");
+		tempFile.deleteOnExit();
 		
-		File mockFile = new MockUp<File>() {
-			@Mock
-			boolean isInvalid() {
-				return true;
-			}
-			@Mock
-			String getPath() {
-				return "TESTFILEPATH";
-			}
-			@Mock
-			long length() {
-				return FILE_SIZE;
-			}
-		}.getMockInstance();
-
 		final CloseableHttpResponse uploadObjectResponseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
 				null,
 				new Header[]{});
 		
+		BlobPropertiesModel properties = createBlobObjectProperties();
+		
 		BlobModel targetModel = new BlobModel();
 		targetModel.setName(OBJECT_ID);
-		targetModel.setProperties(createBlobObjectProperties());
+		targetModel.setProperties(properties);
 		
 		final CloseableHttpResponse listObjectsResponseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -246,23 +235,25 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
             }
         };
 		
-		Blob result = new AzureBlobStoreSupport(azureMock, true).upload(mockFile, BUCKET_ID, OBJECT_ID);
+		Blob result = new AzureBlobStoreSupport(azureMock, true).upload(tempFile, BUCKET_ID, OBJECT_ID);
 		assertReflectionEquals("match fields for BlobsEnumerationResultsModel failed", 
-				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, 0, new Storage<Byte>(FILE_SIZE, Storage.BYTE)), 
+				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, format.parse(properties.getLastModified()).getTime(), new Storage<Byte>(FILE_SIZE, Storage.BYTE)), 
 				result);
 	}
 	
 	@Test
-	public void createBucketShouldPutWithCorrectRequest() throws InternalException, CloudException {
+	public void createBucketShouldPutWithCorrectRequest() throws InternalException, CloudException, AssertionFailedError, ParseException {
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
 				null,
 				new Header[]{});
 		
+		BasePropertiesModel properties = createBlobBucketProperties();
+		
 		ContainerModel targetModel = new ContainerModel();
 		targetModel.setName(BUCKET_ID);
-		targetModel.setProperties(createBlobBucketProperties());
+		targetModel.setProperties(properties);
 		
 		final CloseableHttpResponse listBucketsResponseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -286,21 +277,23 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		Blob resultBucket = new AzureBlobStoreSupport(azureMock, false).createBucket(BUCKET_ID, false);
 		assertReflectionEquals("match fields for new bucket failed", 
-				Blob.getInstance(REGION, null, BUCKET_ID, 0), 
+				Blob.getInstance(REGION, null, BUCKET_ID, format.parse(properties.getLastModified()).getTime()), 
 				resultBucket);
 	}
 	
 	@Test
-	public void createBucketWithFindFreeNameShouldPutWithCorrectRequest() throws CloudException, InternalException {
+	public void createBucketWithFindFreeNameShouldPutWithCorrectRequest() throws CloudException, InternalException, AssertionFailedError, ParseException {
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
 				null,
 				new Header[]{});
 		
+		BasePropertiesModel properties = createBlobBucketProperties();
+		
 		final ContainerModel targetModel = new ContainerModel();
 		targetModel.setName(BUCKET_ID);
-		targetModel.setProperties(createBlobBucketProperties());
+		targetModel.setProperties(properties);
 		
 		final CloseableHttpResponse existBucketsInv1ResponseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -342,7 +335,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		Blob resultBucket = new BlobStore(azureMock).createBucket(BUCKET_ID, true);
 		assertReflectionEquals("match fields for new bucket failed", 
-				Blob.getInstance(REGION, null, targetModel.getName(), 0), 
+				Blob.getInstance(REGION, null, targetModel.getName(), format.parse(properties.getLastModified()).getTime()), 
 				resultBucket);
 	}
 	
@@ -352,11 +345,13 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void getBucketShouldReturnCorrectResult() throws InternalException, CloudException {
+	public void getBucketShouldReturnCorrectResult() throws InternalException, CloudException, AssertionFailedError, ParseException {
+		
+		BasePropertiesModel properties = createBlobBucketProperties();
 		
 		final ContainerModel targetModel = new ContainerModel();
 		targetModel.setName(BUCKET_ID);
-		targetModel.setProperties(createBlobBucketProperties());
+		targetModel.setProperties(properties);
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -373,7 +368,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		Blob resultBucket = new BlobStore(azureMock).getBucket(BUCKET_ID);
 		assertReflectionEquals("match fields for new bucket failed", 
-				Blob.getInstance(REGION, null, targetModel.getName(), 0), 
+				Blob.getInstance(REGION, null, targetModel.getName(), format.parse(properties.getLastModified()).getTime()), 
 				resultBucket);
 	}
 	
@@ -529,7 +524,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void getObjectShouldReturnCorrectResult() throws InternalException, CloudException {
+	public void getObjectShouldReturnCorrectResult() throws InternalException, CloudException, AssertionFailedError, ParseException {
 		
 		BlobPropertiesModel properties = createBlobObjectProperties();
 		
@@ -552,7 +547,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
         
         Blob resultObject = new BlobStore(azureMock).getObject(BUCKET_ID, OBJECT_ID);
         assertReflectionEquals("match fields for BlobsEnumerationResultsModel failed", 
-				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, 0, new Storage<Byte>(properties.getContentLength(), Storage.BYTE)), 
+				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, format.parse(properties.getLastModified()).getTime(), new Storage<Byte>(properties.getContentLength(), Storage.BYTE)), 
 				resultObject);
 	}
 	
@@ -678,15 +673,17 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void listBucketsShouldReturnCorrectResult() throws CloudException, InternalException {
+	public void listBucketsShouldReturnCorrectResult() throws CloudException, InternalException, AssertionFailedError, ParseException {
+		
+		BasePropertiesModel properties = createBlobBucketProperties();
 		
 		ContainerModel model1 = new ContainerModel();
 		model1.setName(BUCKET_ID + "1");
-		model1.setProperties(createBlobBucketProperties());
+		model1.setProperties(properties);
 		
 		ContainerModel model2 = new ContainerModel();
 		model2.setName(BUCKET_ID + "2");
-		model2.setProperties(createBlobBucketProperties());
+		model2.setProperties(properties);
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -703,26 +700,26 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		Iterator<Blob> buckets = new BlobStore(azureMock).list(null).iterator();
 		assertReflectionEquals("match result bucket " + model1.getName() + " failed", 
-				Blob.getInstance(REGION, null, model1.getName(), 0),
+				Blob.getInstance(REGION, null, model1.getName(), format.parse(properties.getLastModified()).getTime()),
 				buckets.next());
 		assertReflectionEquals("match result bucket " + model2.getName() + " failed", 
-				Blob.getInstance(REGION, null, model2.getName(), 0),
+				Blob.getInstance(REGION, null, model2.getName(), format.parse(properties.getLastModified()).getTime()),
 				buckets.next());
 		assertFalse("no more bucket should be found", buckets.hasNext());
 	}
 	
 	@Test
-	public void listObjectsShouldReturnCorrectResult() throws CloudException, InternalException {
+	public void listObjectsShouldReturnCorrectResult() throws CloudException, InternalException, AssertionFailedError, ParseException {
 		
-		BlobPropertiesModel propertiesModel = createBlobObjectProperties();
+		BlobPropertiesModel properties = createBlobObjectProperties();
 		
 		BlobModel model1 = new BlobModel();
 		model1.setName(OBJECT_ID + "1");
-		model1.setProperties(propertiesModel);
+		model1.setProperties(properties);
 		
 		BlobModel model2 = new BlobModel();
 		model2.setName(OBJECT_ID + "2");
-		model2.setProperties(propertiesModel);
+		model2.setProperties(properties);
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -739,10 +736,10 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		Iterator<Blob> buckets = new BlobStore(azureMock).list(BUCKET_ID).iterator();
 		assertReflectionEquals("match result bucket " + model1.getName() + " failed", 
-				Blob.getInstance(REGION, null, BUCKET_ID, model1.getName(), 0, new Storage<Byte>(propertiesModel.getContentLength(), Storage.BYTE)),
+				Blob.getInstance(REGION, null, BUCKET_ID, model1.getName(), format.parse(properties.getLastModified()).getTime(), new Storage<Byte>(properties.getContentLength(), Storage.BYTE)),
 				buckets.next());
 		assertReflectionEquals("match result bucket " + model2.getName() + " failed", 
-				Blob.getInstance(REGION, null, BUCKET_ID, model2.getName(), 0, new Storage<Byte>(propertiesModel.getContentLength(), Storage.BYTE)),
+				Blob.getInstance(REGION, null, BUCKET_ID, model2.getName(), format.parse(properties.getLastModified()).getTime(), new Storage<Byte>(properties.getContentLength(), Storage.BYTE)),
 				buckets.next());
 		assertFalse("no more object should be found", buckets.hasNext());
 	}
@@ -916,9 +913,6 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	
 	private BasePropertiesModel createBlobBucketProperties() {
 		
-		DateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-		format.setTimeZone(TimeZone.getTimeZone("GMT"));
-		
 		BasePropertiesModel basePropertiesModel = new BasePropertiesModel();
 		basePropertiesModel.seteTag("TESTETAG");
 		basePropertiesModel.setLastModified(format.format(new Date()));
@@ -930,9 +924,6 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	private BlobPropertiesModel createBlobObjectProperties() {
-		
-		DateFormat format = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z");
-		format.setTimeZone(TimeZone.getTimeZone("GMT"));
 		
 		BlobPropertiesModel blobPropertiesModel = new BlobPropertiesModel();
 		blobPropertiesModel.setBlobType("BlockBlob");
@@ -949,5 +940,5 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		return blobPropertiesModel;
 	}
-	
+
 }
