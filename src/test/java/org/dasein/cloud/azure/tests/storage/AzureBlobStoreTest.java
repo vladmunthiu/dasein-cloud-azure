@@ -3,7 +3,6 @@ package org.dasein.cloud.azure.tests.storage;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
@@ -14,11 +13,8 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TimeZone;
-
 import javax.servlet.http.HttpServletResponse;
-
 import junit.framework.AssertionFailedError;
-
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -46,7 +42,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
@@ -54,14 +49,12 @@ import mockit.NonStrictExpectations;
 
 public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 
-	private final String REQUEST_BUCKET_URL = "%s/%s";
 	private final String REQUEST_OBJECT_URL = "%s/%s/%s";
-	private final String CREATE_BUCKET_URL = REQUEST_BUCKET_URL + "?restype=container";
+	private final String REQUEST_BUCKET_URL = "%s/%s?restype=container";
 	private final String UPLOAD_FILE_URL = REQUEST_OBJECT_URL + "?timeout=600";
 	private final String LIST_BUCKETS_URL = "%s/?comp=list";
-	private final String LIST_OBJECTS_URL = REQUEST_BUCKET_URL + "?comp=list&restype=container";
-	private final String REMOVE_BUCKET_URL = REQUEST_BUCKET_URL + "?restype=container";
-	private final String MAKE_BUCKET_PUBLIC_URL = REQUEST_BUCKET_URL + "?comp=acl&restype=container";
+	private final String LIST_OBJECTS_URL = "%s/%s?comp=list&restype=container";
+	private final String MAKE_BUCKET_PUBLIC_URL = "%s/%s?comp=acl&restype=container";
 	private final String MAKE_OBJECT_PUBLIC_URL = REQUEST_OBJECT_URL + "?comp=acl&restype=container";
 	
 	private final Integer FILE_SIZE = 1024;
@@ -241,6 +234,14 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 				result);
 	}
 	
+	@Test(expected = OperationNotSupportedException.class)
+	public void uploadShouldThrowExceptionIfUploadRootObject() throws CloudException, InternalException {
+		new BlobStore(azureMock).upload(
+				new MockUp<File>(){}.getMockInstance(), 
+				null, 
+				OBJECT_ID);
+	}
+	
 	@Test
 	public void createBucketShouldPutWithCorrectRequest() throws InternalException, CloudException, AssertionFailedError, ParseException {
 		
@@ -264,7 +265,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 2)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-	            	assertPut(request, String.format(CREATE_BUCKET_URL, ENDPOINT, BUCKET_ID));
+	            	assertPut(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, BUCKET_ID));
 	            	return responseMock;
             	} else if (inv.getInvocationCount() == 2) {
             		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
@@ -322,7 +323,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
             		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
 	            	return existBucketsInv2ResponseMock;
             	} else if (inv.getInvocationCount() == 3) {
-	            	assertPut(request, String.format(CREATE_BUCKET_URL, ENDPOINT, targetModel.getName()));
+	            	assertPut(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, targetModel.getName()));
 	            	return responseMock;
             	} else if (inv.getInvocationCount() == 4) {
             		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
@@ -402,7 +403,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		new MockUp<CloseableHttpClient>() {
             @Mock(invocations = 1)
             public CloseableHttpResponse execute(HttpUriRequest request) {
-        		assertDelete(request, String.format(REMOVE_BUCKET_URL, ENDPOINT, BUCKET_ID));
+        		assertDelete(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, BUCKET_ID));
         		return responseMock;
             }
         };
@@ -448,7 +449,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
             @Mock(invocations = 8)
             public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
             	if (inv.getInvocationCount() == 1) {
-	            	assertPut(request, String.format(CREATE_BUCKET_URL, ENDPOINT, targetBucketName));
+	            	assertPut(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, targetBucketName));
 	            	return responseMock;
             	} else if (inv.getInvocationCount() == 2) {
             		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
@@ -469,7 +470,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
             		assertGet(request, String.format(LIST_OBJECTS_URL, ENDPOINT, sourceBucketName));
                 	return listEmptyObjectsResponseMock;
             	} else if (inv.getInvocationCount() == 8) {
-            		assertDelete(request, String.format(REMOVE_BUCKET_URL, ENDPOINT, sourceBucketName));
+            		assertDelete(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, sourceBucketName));
             		return responseMock;
             	} else {
             		throw new RuntimeException("Invalid invocation count!");
@@ -523,6 +524,15 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		new BlobStore(azureMock).renameObject(BUCKET_ID, sourceObjectName, targetObjectName);
 	}
 	
+	@Test(expected=CloudException.class)
+	public void renameObjectShouldThrowExceptionIfBucketNameIsNull() throws CloudException, InternalException {
+		
+		final String sourceObjectName = OBJECT_ID + "_SOURCE";
+		final String targetObjectName = OBJECT_ID + "_TARGET";
+		
+		new BlobStore(azureMock).renameObject(null, sourceObjectName, targetObjectName);
+	}
+	
 	@Test
 	public void getObjectShouldReturnCorrectResult() throws InternalException, CloudException, AssertionFailedError, ParseException {
 		
@@ -568,6 +578,11 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
         };
         
         assertNull("find not exist object", new BlobStore(azureMock).getObject(BUCKET_ID, OBJECT_ID));
+	}
+	
+	@Test
+	public void getObjectShouldReturnCorrectResultIfBucketNameIsNull() throws InternalException, CloudException {
+		assertNull("find not exist object", new BlobStore(azureMock).getObject(null, OBJECT_ID));
 	}
 	
 	@Test
@@ -670,6 +685,25 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
         };
 		
 		assertFalse("find public object failed", new BlobStore(azureMock).isPublic(BUCKET_ID, OBJECT_ID));
+	}
+	
+	@Test
+	public void isBucketPublicShouldReturnCorrectResult() throws CloudException, InternalException {
+		
+		final CloseableHttpResponse responseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<BlobsEnumerationResultsModel>(createBlobObjectsModel()),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 1)
+            public CloseableHttpResponse execute(HttpUriRequest request) {
+        		assertGet(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, BUCKET_ID));
+        		return responseMock;
+            }
+        };
+		
+        assertTrue("find public bucket failed", new BlobStore(azureMock).isPublic(BUCKET_ID, null));
 	}
 	
 	@Test
@@ -782,6 +816,11 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		};
 		
 		new BlobStore(azureMock).makePublic(BUCKET_ID, OBJECT_ID);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void makePublicShouldThrowExceptionIfBucketAndObjectNameIsNull() throws InternalException, CloudException {
+		new BlobStore(azureMock).makePublic(null, null);
 	}
 	
 	@Test
@@ -940,5 +979,5 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		
 		return blobPropertiesModel;
 	}
-
+	
 }
