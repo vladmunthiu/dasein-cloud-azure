@@ -3,7 +3,9 @@ package org.dasein.cloud.azure.tests.storage;
 import static org.dasein.cloud.azure.tests.HttpMethodAsserts.*;
 import static org.junit.Assert.*;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
+
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -13,8 +15,11 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TimeZone;
+
 import javax.servlet.http.HttpServletResponse;
+
 import junit.framework.AssertionFailedError;
+
 import org.apache.http.Header;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -29,6 +34,8 @@ import org.dasein.cloud.azure.storage.model.BlobModel;
 import org.dasein.cloud.azure.storage.model.BlobPrefixModel;
 import org.dasein.cloud.azure.storage.model.BlobPropertiesModel;
 import org.dasein.cloud.azure.storage.model.BlobsEnumerationResultsModel;
+import org.dasein.cloud.azure.storage.model.BlockListModel;
+import org.dasein.cloud.azure.storage.model.BlockModel;
 import org.dasein.cloud.azure.storage.model.ContainerEnumerationResultsModel;
 import org.dasein.cloud.azure.storage.model.ContainerModel;
 import org.dasein.cloud.azure.tests.AzureTestsBaseWithLocation;
@@ -42,9 +49,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+import org.apache.commons.codec.binary.Base64;
 import mockit.Invocation;
 import mockit.Mock;
 import mockit.MockUp;
+import mockit.Mocked;
 import mockit.NonStrictExpectations;
 
 public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
@@ -52,12 +61,16 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	private final String REQUEST_OBJECT_URL = "%s/%s/%s";
 	private final String REQUEST_BUCKET_URL = "%s/%s?restype=container";
 	private final String UPLOAD_FILE_URL = REQUEST_OBJECT_URL + "?timeout=600";
+	private final String UPLOAD_LARGE_FILE_URL = REQUEST_OBJECT_URL + "?comp=block&blockid=%s";
+	private final String GET_BLOCKS_LIST_URL = REQUEST_OBJECT_URL + "?comp=blocklist&blocklisttype=all";
+	private final String COMMIT_BLOCKS_URL = REQUEST_OBJECT_URL + "?comp=blocklist";
 	private final String LIST_BUCKETS_URL = "%s/?comp=list";
 	private final String LIST_OBJECTS_URL = "%s/%s?comp=list&restype=container";
 	private final String MAKE_BUCKET_PUBLIC_URL = "%s/%s?comp=acl&restype=container";
 	private final String MAKE_OBJECT_PUBLIC_URL = REQUEST_OBJECT_URL + "?comp=acl&restype=container";
 	
 	private final Integer FILE_SIZE = 1024;
+	private final Integer LARGE_FILE_SIZE = 64 * 1024 * 1024;
 	
 	private final String BUCKET_ID = "TESTBUCKET";
 	private final String OBJECT_ID = "TESTOBJECT";
@@ -191,10 +204,14 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void uploadShouldReturnCorrectResult() throws CloudException, InternalException, IOException, AssertionFailedError, ParseException {
+	public void uploadShouldReturnCorrectResult(@Mocked final FileInputStream fis) throws CloudException, InternalException, IOException, AssertionFailedError, ParseException {
 		
-		File tempFile = File.createTempFile("smallTempFile", ".tmp");
-		tempFile.deleteOnExit();
+		File tempFile = new MockUp<File>(){
+			@Mock
+			long length() {
+				return FILE_SIZE;
+			}
+		}.getMockInstance();
 		
 		final CloseableHttpResponse uploadObjectResponseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -231,6 +248,92 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 		Blob result = new AzureBlobStoreSupport(azureMock, true).upload(tempFile, BUCKET_ID, OBJECT_ID);
 		assertReflectionEquals("match fields for BlobsEnumerationResultsModel failed", 
 				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, format.parse(properties.getLastModified()).getTime(), new Storage<Byte>(FILE_SIZE, Storage.BYTE)), 
+				result);
+	}
+	
+	@Test
+	public void uploadLargeFileShouldReturnCorrectResult(@Mocked final FileInputStream fis) throws IOException, CloudException, InternalException, AssertionFailedError, ParseException {
+		
+		File tempFile = new MockUp<File>(){}.getMockInstance(); 
+		
+		new NonStrictExpectations() {
+			{ fis.available(); result = LARGE_FILE_SIZE; }
+			{ fis.read((byte[]) any); result = LARGE_FILE_SIZE / 16; }
+		};
+		
+		final CloseableHttpResponse putResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				null,
+				new Header[]{});
+		
+		final BlockListModel blockListModel = new BlockListModel();
+		final List<BlockModel> uncommittedBlocksModel = new ArrayList<BlockModel>();
+		for (int i = 0; i < 16; i++) {
+			String blockId = Base64.encodeBase64String(String.valueOf(1000 + i).getBytes());
+        	
+    		BlockModel block = new BlockModel();
+        	block.setName(blockId);
+        	block.setSize(LARGE_FILE_SIZE / 16);
+        	uncommittedBlocksModel.add(block);
+		}
+		blockListModel.setUncommittedBlocks(uncommittedBlocksModel);
+		
+		final CloseableHttpResponse getBlocksResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<BlockListModel>(blockListModel),
+				new Header[]{});
+		
+		BlobModel targetModel = new BlobModel();
+		targetModel.setName(OBJECT_ID);
+		BlobPropertiesModel properties = createBlobObjectProperties();
+		properties.setContentLength(LARGE_FILE_SIZE);
+		targetModel.setProperties(properties);
+		
+		final CloseableHttpResponse listObjectsResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<BlobsEnumerationResultsModel>(createBlobObjectsModel(targetModel)),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 19)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+            	if (inv.getInvocationCount() <= 16) {
+	            	assertPut(request, String.format(UPLOAD_LARGE_FILE_URL, ENDPOINT, BUCKET_ID, OBJECT_ID, 
+	            			Base64.encodeBase64String(String.valueOf(999 + inv.getInvocationCount()).getBytes())), 
+	            			new Header[]{new BasicHeader("x-ms-blob-type", "BlockBlob"), new BasicHeader("content-type", "text/plain")});
+	            	try {
+		            	if (inv.getInvocationCount() == 15) {
+		            		new NonStrictExpectations() {
+								{ fis.read((byte[]) any); result = LARGE_FILE_SIZE / 16 - 1; }
+							};
+		            	} else if (inv.getInvocationCount() == 16) {
+							new NonStrictExpectations() {
+								{ fis.read((byte[]) any); result = -1; }
+							};
+		            	}
+	            	} catch (IOException e) {
+						//No-op
+					}
+	            	return putResponseMock;
+            	} else if (inv.getInvocationCount() == 17) {
+            		assertGet(request, String.format(GET_BLOCKS_LIST_URL, ENDPOINT, BUCKET_ID, OBJECT_ID));
+            		return getBlocksResponseMock;
+            	} else if (inv.getInvocationCount() == 18) {
+            		assertPut(request, String.format(COMMIT_BLOCKS_URL, ENDPOINT, BUCKET_ID, OBJECT_ID));
+            		return putResponseMock;
+            	} else if (inv.getInvocationCount() == 19) {
+            		assertGet(request, String.format(LIST_OBJECTS_URL, ENDPOINT, BUCKET_ID));
+            		return listObjectsResponseMock;
+            	} else {
+            		throw new RuntimeException("invalid invocation count!");
+            	}
+            }
+        };
+		
+		Blob result = new AzureBlobStoreSupport(azureMock, true).upload(tempFile, BUCKET_ID, OBJECT_ID);
+		assertReflectionEquals("match fields for BlobsEnumerationResultsModel failed", 
+				Blob.getInstance(REGION, null, BUCKET_ID, OBJECT_ID, format.parse(properties.getLastModified()).getTime(), 
+						new Storage<Byte>(LARGE_FILE_SIZE, Storage.BYTE)), 
 				result);
 	}
 	
@@ -343,6 +446,60 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	@Test(expected = OperationNotSupportedException.class)
 	public void createBucketShouldThrowExceptionIfBucketNameIsInvalid() throws InternalException, CloudException {
 		new BlobStore(azureMock).createBucket("TESTPREFIX/" + BUCKET_ID, false);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void createBucketShouldThrowExceptionIfBucketNotFound() throws InternalException, CloudException {
+		
+		final CloseableHttpResponse responseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				null,
+				new Header[]{});
+		
+		BasePropertiesModel properties = createBlobBucketProperties();
+		
+		final ContainerModel targetModel = new ContainerModel();
+		targetModel.setName(BUCKET_ID);
+		targetModel.setProperties(properties);
+		
+		final CloseableHttpResponse existBucketsInv1ResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<ContainerEnumerationResultsModel>(createBlobBucketsModel(targetModel)),
+				new Header[]{});
+		
+		targetModel.setName(BUCKET_ID + "-1");
+		
+		final CloseableHttpResponse existBucketsInv2ResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<ContainerEnumerationResultsModel>(createBlobBucketsModel()),
+				new Header[]{});
+		
+		final CloseableHttpResponse listBucketsResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<ContainerEnumerationResultsModel>(createBlobBucketsModel()),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+            @Mock(invocations = 4)
+            public CloseableHttpResponse execute(Invocation inv, HttpUriRequest request) {
+            	if (inv.getInvocationCount() == 1) {
+            		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
+	            	return existBucketsInv1ResponseMock;
+            	} else if (inv.getInvocationCount() == 2) {
+            		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
+	            	return existBucketsInv2ResponseMock;
+            	} else if (inv.getInvocationCount() == 3) {
+	            	assertPut(request, String.format(REQUEST_BUCKET_URL, ENDPOINT, targetModel.getName()));
+	            	return responseMock;
+            	} else if (inv.getInvocationCount() == 4) {
+            		assertGet(request, String.format(LIST_BUCKETS_URL, ENDPOINT));
+            		return listBucketsResponseMock;
+            	} else {
+            		throw new RuntimeException("Invalid invocation count!");
+            	}
+            }
+        };
+		new BlobStore(azureMock).createBucket(BUCKET_ID, true);
 	}
 	
 	@Test
@@ -644,7 +801,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void isPublicShouldReturnCorrectResultForPublicObject() throws CloudException, InternalException {
+	public void isObjectPublicShouldReturnCorrectResultForPublicObject() throws CloudException, InternalException {
 		
 		BlobPropertiesModel properties = createBlobObjectProperties();
 		
@@ -669,7 +826,7 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test
-	public void isPublicShouldReturnCorrectResultForPrivateObject() throws CloudException, InternalException {
+	public void isObjectPublicShouldReturnCorrectResultForPrivateObject() throws CloudException, InternalException {
 		
 		final CloseableHttpResponse responseMock = getHttpResponseMock(
 				getStatusLineMock(HttpServletResponse.SC_OK),
@@ -704,6 +861,16 @@ public class AzureBlobStoreTest extends AzureTestsBaseWithLocation {
         };
 		
         assertTrue("find public bucket failed", new BlobStore(azureMock).isPublic(BUCKET_ID, null));
+	}
+	
+	@Test
+	public void isPublicShouldReturnCorrectResultIfCheckRootObject() throws CloudException, InternalException {
+		assertFalse("not support root object public", new BlobStore(azureMock).isPublic(null, OBJECT_ID));
+	}
+	
+	@Test
+	public void isPublicShouldReturnCorrectResultIfBucketAndObjectNameIsNull() throws CloudException, InternalException {
+		assertFalse("find public bucket with invalid params", new BlobStore(azureMock).isPublic(null, null));
 	}
 	
 	@Test
