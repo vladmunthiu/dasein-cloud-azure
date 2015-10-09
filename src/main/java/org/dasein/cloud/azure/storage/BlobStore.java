@@ -682,9 +682,9 @@ public class BlobStore extends AbstractBlobStoreSupport<Azure> {
                 try { input.close(); }
                 catch( Throwable ignore ) { }
 
-                ArrayList<String> blockIds = (ArrayList<String>)getBlocks(object, bucket, "all", "UncommittedBlocks");
+                ArrayList<String> blockIds = (ArrayList<String>)getBlocks(bucket, object, "all", "UncommittedBlocks");
 
-                commitBlocks(object, bucket, blockIds);
+                commitBlocks(bucket, object, blockIds);
             }
         }
         finally{

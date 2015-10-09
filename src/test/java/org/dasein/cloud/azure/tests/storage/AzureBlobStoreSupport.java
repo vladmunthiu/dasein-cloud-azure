@@ -6,6 +6,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.storage.BlobStore;
+import org.dasein.cloud.storage.Blob;
 
 public class AzureBlobStoreSupport extends BlobStore {
 
