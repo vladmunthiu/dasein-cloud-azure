@@ -66,7 +66,7 @@ public class AzureSqlDatabaseSupport implements RelationalDatabaseSupport {
             throw new InternalException("Invalid admin user name");
         }
 
-        if(product == null && product.getName() == null){
+        if(product == null || product.getName() == null){
             throw new InternalException("Cannot create database. Database product or database product name cannot be empty");
         }
 
