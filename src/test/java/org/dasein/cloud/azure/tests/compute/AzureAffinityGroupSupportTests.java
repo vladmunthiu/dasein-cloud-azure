@@ -124,8 +124,13 @@ public class AzureAffinityGroupSupportTests extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test(expected=InternalException.class)
-	public void deleteShouldThrowExceptionIfIdIsInvalid() throws InternalException, CloudException {
+	public void deleteShouldThrowExceptionIfIdIsNull() throws InternalException, CloudException {
 		new AzureAffinityGroupSupport(azureMock).delete(null);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void deleteShouldThrowExceptionIfIdIsEmpty() throws InternalException, CloudException {
+		new AzureAffinityGroupSupport(azureMock).delete("");
 	}
 	
 	@Test
@@ -153,8 +158,13 @@ public class AzureAffinityGroupSupportTests extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test(expected=InternalException.class)
-	public void getShouldThrowExceptionIfIdIsInvalid() throws InternalException, CloudException {
+	public void getShouldThrowExceptionIfIdIsNull() throws InternalException, CloudException {
 		new AzureAffinityGroupSupport(azureMock).get(null);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void getShouldThrowExceptionIfIdIsEmpty() throws InternalException, CloudException {
+		new AzureAffinityGroupSupport(azureMock).get("");
 	}
 	
 	@Test
@@ -233,7 +243,26 @@ public class AzureAffinityGroupSupportTests extends AzureTestsBaseWithLocation {
 	}
 	
 	@Test(expected=InternalException.class)
-	public void modifyShouldThrowExceptionIfOptionsIsInsufficient() throws InternalException, CloudException {
+	public void modifyShouldThrowExceptionIfIdIsNull() throws InternalException, CloudException {
+		final String updatedDescription = AFFINITY_GROUP_ID + "_UPDATED";
+		AffinityGroupCreateOptions options = AffinityGroupCreateOptions.getInstance(AFFINITY_GROUP_ID, updatedDescription, REGION);
+		new AzureAffinityGroupSupport(azureMock).modify(null, options);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void modifyShouldThrowExceptionIfIdIsEmpty() throws InternalException, CloudException {
+		final String updatedDescription = AFFINITY_GROUP_ID + "_UPDATED";
+		AffinityGroupCreateOptions options = AffinityGroupCreateOptions.getInstance(AFFINITY_GROUP_ID, updatedDescription, REGION);
+		new AzureAffinityGroupSupport(azureMock).modify("", options);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void modifyShouldThrowExceptionIfOptionsIsNull() throws InternalException, CloudException {
+		new AzureAffinityGroupSupport(azureMock).modify(AFFINITY_GROUP_ID, null);
+	}
+	
+	@Test(expected=InternalException.class)
+	public void modifyShouldThrowExceptionIfDescriptionIsNull() throws InternalException, CloudException {
 		AffinityGroupCreateOptions options = AffinityGroupCreateOptions.getInstance(AFFINITY_GROUP_ID, null, REGION);
 		new AzureAffinityGroupSupport(azureMock).modify(AFFINITY_GROUP_ID, options);
 	}
