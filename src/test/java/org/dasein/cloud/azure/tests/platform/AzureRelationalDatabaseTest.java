@@ -271,6 +271,13 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 		new AzureRelationalDatabaseSupport(azureMock, database).addAccess(DATABASE_ID, null);
 	}
 	
+	@Test(expected = InternalException.class)
+	public void addAccessShouldThrowExceptionIfNoDatabaseFound() throws CloudException, InternalException {
+		final String startIpAddress = "202.100.10.10";
+		final String endIpAddress = "202.100.10.100";
+		new AzureRelationalDatabaseSupport(azureMock, null).addAccess(DATABASE_ID, String.format("%s::%s", startIpAddress, endIpAddress));
+	}
+	
 	@Test
 	public void createFromScratchShouldReturnCorrectResult() throws CloudException, InternalException {
 		
@@ -559,6 +566,26 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 	}
 	
 	@Test
+	public void listDatabasesShouldReturnCorrectResultIfNoServerFound() throws AssertionFailedError, CloudException, InternalException {
+		
+		final CloseableHttpResponse listServerNonGenResponseMock = getHttpResponseMock(
+				getStatusLineMock(HttpServletResponse.SC_OK),
+				new DaseinObjectToXmlEntity<ServersModel>(new ServersModel()),
+				new Header[]{});
+		
+		new MockUp<CloseableHttpClient>() {
+			@Mock(invocations = 1)
+			public <T> T execute(HttpUriRequest request, ResponseHandler<T> responseHandler) throws IOException {
+				assertGet(request, String.format(RESOURCE_SERVERS_NONGEN, ACCOUNT_NO));
+				return responseHandler.handleResponse(listServerNonGenResponseMock);
+			}
+		};
+		
+		assertReflectionEquals("match fields for databases failed", 
+				Arrays.asList(), new AzureSqlDatabaseSupport(azureMock).listDatabases());
+	}
+	
+	@Test
 	public void listParametersShouldReturnCorrectResult() throws CloudException, InternalException {
 		assertNull(new AzureSqlDatabaseSupport(azureMock).listParameters(null));
 	}
@@ -567,12 +594,7 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 	public void listSnapshotsShouldReturnCorrectResult() throws CloudException, InternalException {
 		assertNull(new AzureSqlDatabaseSupport(azureMock).listSnapshots(null));
 	}
-	
-	@Test
-	public void removeConfigurationShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).removeConfiguration(null);
-	}
-	
+
 	@Test
 	public void removeDatabaseShouldDeleteWithCorrectRequestIfExistSingleDatabase() throws CloudException, InternalException {
 		
@@ -691,21 +713,6 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 	}
 	
 	@Test
-	public void removeSnapshotShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).removeSnapshot(null);
-	}
-	
-	@Test
-	public void resetConfigurationShouldPostWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).resetConfiguration(null);
-	}
-	
-	@Test
-	public void restartShouldPostWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).restart(null, false);
-	}
-	
-	@Test
 	public void revokeAccessShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
 		
 		final String ruleName = "TESTFIREWALLRULE";
@@ -743,11 +750,6 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 	public void revokeAccessShouldThrowExceptionIfCidrFormatIsInvalid() throws CloudException, InternalException {
 		Database database = createDatabase(SERVER_ID, DATABASE_ID, 10, new Date().getTime(), "Basic", REGION);
 		new AzureRelationalDatabaseSupport(azureMock, database).revokeAccess(String.format("%s:%s", SERVER_ID, DATABASE_ID), "TESTFIREWALLRULE");
-	}
-	
-	@Test
-	public void updateConfigurationShouldPostWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).updateConfiguration(null);
 	}
 	
 	@Test
@@ -899,16 +901,6 @@ public class AzureRelationalDatabaseTest extends AzureTestsBase {
 		DatabaseBackup databaseBackup = new DatabaseBackup();
 		databaseBackup.setProviderDatabaseId(DATABASE_ID);
 		new AzureSqlDatabaseSupport(azureMock).createFromBackup(databaseBackup, DATABASE_ID);
-	}
-	
-	@Test
-	public void removeBackupShouldDeleteWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).removeBackup(null);
-	}
-	
-	@Test
-	public void restoreBackupShouldPostWithCorrectRequest() throws CloudException, InternalException {
-		new AzureSqlDatabaseSupport(azureMock).restoreBackup(null);
 	}
 	
 	private DatabaseServiceResourceModel createDatabaseServiceResourceModel(String databaseId) {
