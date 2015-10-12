@@ -375,14 +375,16 @@ public class AzureSqlDatabaseSupport implements RelationalDatabaseSupport {
         DatabaseServiceResourcesModel databaseServiceResourcesModel =
                 new AzureRequester(provider, serverHttpUriRequest).withXmlProcessor(DatabaseServiceResourcesModel.class).execute();
 
-        if(databaseServiceResourcesModel == null || databaseServiceResourcesModel.getDatabaseServiceResourceModels().size() > 1)
-            return;
-
-        if(databaseServiceResourcesModel.getDatabaseServiceResourceModels().size() == 1 && !databaseServiceResourcesModel.getDatabaseServiceResourceModels().get(0).getName().equalsIgnoreCase("master"))
-            return;
-
-        HttpUriRequest deleteServerRequest = new AzureSQLDatabaseSupportRequests(provider).deleteServer(providerDatabaseIdParts.get(0)).build();
-        new AzureRequester(provider, deleteServerRequest).execute();
+        if (databaseServiceResourcesModel != null) {
+        	if (databaseServiceResourcesModel.getDatabaseServiceResourceModels() == null || 
+        		databaseServiceResourcesModel.getDatabaseServiceResourceModels().size() == 0 || 
+        		(databaseServiceResourcesModel.getDatabaseServiceResourceModels().size() == 1 && 
+        			databaseServiceResourcesModel.getDatabaseServiceResourceModels().get(0).getName().equalsIgnoreCase("master"))) {
+        		HttpUriRequest deleteServerRequest = new AzureSQLDatabaseSupportRequests(provider).deleteServer(providerDatabaseIdParts.get(0)).build();
+                new AzureRequester(provider, deleteServerRequest).execute();
+        	}
+        } 
+        
     }
 
     @Override
