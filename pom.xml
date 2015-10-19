@@ -3,7 +3,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-azure</artifactId>
-    <version>2015.09.1-SNAPSHOT</version>
+    <version>2015.10.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-azure</name>
@@ -45,7 +45,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2015.09.1-SNAPSHOT</version>
+            <version>2015.10.1</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -140,8 +140,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.0.2</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -354,6 +354,32 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.6.3</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>sonatype-nexus-staging</serverId>
+                    <nexusUrl>https://oss.sonatype.org</nexusUrl>
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                    <autoDropAfterRelease>true</autoDropAfterRelease>
+                </configuration>
             </plugin>
         </plugins>
     </build>
