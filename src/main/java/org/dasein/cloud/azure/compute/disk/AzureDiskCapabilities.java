@@ -64,30 +64,6 @@ public class AzureDiskCapabilities extends AbstractCapabilities<Azure> implement
     }
 
     /**
-     * Indicates the maximum IOPS value allowed in the Volume products for the provider.
-     *
-     * @return the maximum IOPS value
-     * @throws org.dasein.cloud.InternalException an error occurred within the Dasein Cloud implementation determining the limit
-     * @throws org.dasein.cloud.CloudException    an error occurred retrieving the limit from the cloud
-     */
-    @Override
-    public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
-        return 0;
-    }
-
-    /**
-     * Indicates the minimum IOPS value allowed in the Volume products for the provider.
-     *
-     * @return the minimum IOPS value
-     * @throws org.dasein.cloud.InternalException an error occurred within the Dasein Cloud implementation determining the limit
-     * @throws org.dasein.cloud.CloudException    an error occurred retrieving the limit from the cloud
-     */
-    @Override
-    public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
-        return 0;
-    }
-
-    /**
      * Indicates the maximum volume size for IOPS Volumes.
      *
      * @return the maximum size of an IOPS volume
@@ -169,7 +145,22 @@ public class AzureDiskCapabilities extends AbstractCapabilities<Azure> implement
     }
 
     @Override
+    public boolean supportsAttach() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsDetach() {
+        return true;
+    }
+
+    @Override
     public @Nonnull Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException{
         return Requirement.REQUIRED;
+    }
+
+    @Override
+    public boolean supportsIOPSVolumes() throws InternalException, CloudException {
+        return false;
     }
 }

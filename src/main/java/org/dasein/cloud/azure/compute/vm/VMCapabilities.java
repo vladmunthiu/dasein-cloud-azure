@@ -136,6 +136,11 @@ public class VMCapabilities extends AbstractCapabilities<Azure> implements Virtu
         return null;
     }
 
+    @Override
+    public String[] getVirtualMachineReservedUserNames(){
+        return new String[0];
+    }
+
     @Nonnull
     @Override
     public Requirement identifyDataCenterLaunchRequirement() throws CloudException, InternalException {
@@ -146,6 +151,11 @@ public class VMCapabilities extends AbstractCapabilities<Azure> implements Virtu
     @Override
     public Requirement identifyImageRequirement( @Nonnull ImageClass cls ) throws CloudException, InternalException {
         return ( cls.equals(ImageClass.MACHINE) ? Requirement.REQUIRED : Requirement.NONE );
+    }
+
+    @Override
+    public @Nonnull Requirement identifyUsernameRequirement() throws CloudException, InternalException{
+        return Requirement.REQUIRED;
     }
 
     @Nonnull
@@ -206,6 +216,9 @@ public class VMCapabilities extends AbstractCapabilities<Azure> implements Virtu
 
     @Override
     public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException{return false;}
+
+    @Override
+    public boolean isRootPasswordSSHKeyEncrypted() throws CloudException, InternalException{ return false; }
 
     @Nonnull
     @Override
