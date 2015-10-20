@@ -756,6 +756,11 @@ public class AzureVM extends AbstractVMSupport<Azure> {
     }
 
     @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listAllProducts() throws InternalException, CloudException{
+        return listProducts(null, VirtualMachineProductFilterOptions.getInstance());
+    }
+
+    @Override
     public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId, @Nonnull VirtualMachineProductFilterOptions options) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVMProducts");
         try {

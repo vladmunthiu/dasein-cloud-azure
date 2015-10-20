@@ -34,12 +34,6 @@
         <url>http://github.com/dasein-cloud/dasein-cloud-azure</url>
     </scm>
 
-    <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>5</version>
-    </parent>
-
     <dependencies>
         <!-- Compile -->
         <dependency>
@@ -187,7 +181,7 @@
                         <exclude>**/LICENSE-APACHE.txt</exclude>
                     </excludes>
                     <properties>
-                        <year>2013-2014</year>
+                        <year>2013-2015</year>
                         <copyrightHolder>Dell, Inc</copyrightHolder>
                     </properties>
                 </configuration>
@@ -362,7 +356,7 @@
                 <executions>
                     <execution>
                         <id>sign-artifacts</id>
-                        <phase>verify</phase>
+                        <phase>deploy</phase>
                         <goals>
                             <goal>sign</goal>
                         </goals>
