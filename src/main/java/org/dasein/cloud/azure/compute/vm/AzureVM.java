@@ -821,7 +821,7 @@ public class AzureVM extends AbstractVMSupport<Azure> {
 
                         for( int i=0; i<plist.length(); i++ ) {
                             JSONObject product = plist.getJSONObject(i);
-                            boolean supported = false;
+                            boolean supported = true;
 
                             if( product.has("excludesRegions") ) {
                                 JSONArray regions = product.getJSONArray("excludesRegions");
