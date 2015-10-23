@@ -3,7 +3,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-azure</artifactId>
-    <version>2015.10.3</version>
+    <version>2015.10.4-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-azure</name>
@@ -32,7 +32,7 @@
         <connection>scm:git:git://github.com/dasein-cloud/dasein-cloud-azure.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/dasein-cloud/dasein-cloud-azure.git</developerConnection>
         <url>http://github.com/dasein-cloud/dasein-cloud-azure</url>
-      <tag>dasein-cloud-azure-2015.10.3</tag>
+      <tag>HEAD</tag>
   </scm>
 
     <dependencies>
