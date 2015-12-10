@@ -100,6 +100,9 @@ public class PersistentVMRoleModel
         @XmlElementWrapper(name = "InputEndpoints", namespace = "http://schemas.microsoft.com/windowsazure")
         @XmlElement(name="InputEndpoint", namespace ="http://schemas.microsoft.com/windowsazure")
         private List<InputEndpoint> inputEndpoints;
+        @XmlElementWrapper(name = "SubnetNames", namespace = "http://schemas.microsoft.com/windowsazure")
+        @XmlElement(name="SubnetName", namespace = "http://schemas.microsoft.com/windowsazure")
+        private List<String> subnetNames;
 
         public String getConfigurationSetType() {
             return configurationSetType;
@@ -115,6 +118,14 @@ public class PersistentVMRoleModel
 
         public void setInputEndpoints(List<InputEndpoint> inputEndpoints) {
             this.inputEndpoints = inputEndpoints;
+        }
+
+        public List<String> getSubnetNames() {
+            return subnetNames;
+        }
+
+        public void setSubnetNames(List<String> subnetNames) {
+            this.subnetNames = subnetNames;
         }
     }
 
