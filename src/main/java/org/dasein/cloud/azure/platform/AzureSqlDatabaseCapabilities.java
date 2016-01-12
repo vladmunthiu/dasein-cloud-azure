@@ -32,7 +32,7 @@ public class AzureSqlDatabaseCapabilities implements RelationalDatabaseCapabilit
 
     @Override
     public boolean supportsFirewallRules() throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
