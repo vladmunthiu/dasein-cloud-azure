@@ -26,9 +26,10 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.azure.Azure;
 import org.dasein.cloud.azure.AzureConfigException;
 import org.dasein.cloud.azure.AzureMethod;
-import org.dasein.cloud.azure.compute.AzureComputeServices;
 import org.dasein.cloud.azure.compute.vm.AzureRoleDetails;
-import org.dasein.cloud.azure.network.model.*;
+import org.dasein.cloud.azure.network.model.DefinitionModel;
+import org.dasein.cloud.azure.network.model.ProfileModel;
+import org.dasein.cloud.azure.network.model.ProfilesModel;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.util.Cache;
@@ -232,10 +233,10 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
         for (ProfileModel profile : profileResponseModels.getProfiles())
         {
             DefinitionModel definitionModel = getDefinition(profile.getName());
-
-            LoadBalancer loadBalancer = toLoadBalancer(ctx, profile, definitionModel);
-
-            loadBalancers.add(loadBalancer);
+            if(definitionModel != null) {
+                LoadBalancer loadBalancer = toLoadBalancer(ctx, profile, definitionModel);
+                loadBalancers.add(loadBalancer);
+            }
         }
 
         return loadBalancers;
@@ -260,8 +261,13 @@ public class AzureLoadBalancerSupport extends AbstractLoadBalancerSupport<Azure>
     }
 
     private LoadBalancer toLoadBalancer(ProviderContext ctx, ProfileModel profileModel, DefinitionModel definitionModel) {
+        if(definitionModel == null)
+            return null;
 
-        LoadBalancerState lbState = definitionModel.getStatus().equalsIgnoreCase("enabled") ? LoadBalancerState.ACTIVE : LoadBalancerState.TERMINATED;
+        LoadBalancerState lbState = LoadBalancerState.PENDING;
+        if(definitionModel.getStatus() != null) {
+            lbState = definitionModel.getStatus().equalsIgnoreCase("enabled") ? LoadBalancerState.ACTIVE : LoadBalancerState.TERMINATED;
+        }
         String lbId = profileModel.getDomainName().substring(0, profileModel.getDomainName().indexOf("."));
 
         LoadBalancer loadBalancer = LoadBalancer.getInstance(ctx.getAccountNumber(), null, lbId, lbState,
